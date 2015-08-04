@@ -57,15 +57,6 @@ int main(int argc, char* argv[]) {
         auto node = simulation.random_node();
         node->flood(Packet::make_packet(node, PILO::Packet::NOP, 10000000));
     }
-    //std::shared_ptr<PILO::Node> node;
-    //do {
-        //node = simulation.random_node();
-        //std::cout << "Use count " << node.use_count() << std::endl;
-        //node->flood(Packet::make_packet(node, PILO::Packet::NOP, 1000000));
-        //count++;
-        //node.reset();
-    //} while (count < 1000);
-
     simulation.run();
     return 1;
 }
