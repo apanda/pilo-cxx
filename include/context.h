@@ -16,6 +16,7 @@ namespace PILO {
             inline Time now() { return _time; }
             void set_time(Time time);
             void schedule(Time delta, std::function<void(Time)> task);
+            void scheduleAbsolute(Time time, std::function<void(Time)> task);
         private:
             struct TaskCompare {
                 inline bool operator()(const std::tuple<Time, Task>& t1, 

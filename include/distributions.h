@@ -2,6 +2,7 @@
 #include <boost/random.hpp>
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/exponential_distribution.hpp>
+#include <boost/random/uniform_int.hpp>
 #ifndef __DISTRIBUTIONS_H__
 #define __DISTRIBUTIONS_H__
 namespace {
@@ -84,6 +85,23 @@ namespace PILO {
             virtual T next() {
                 // We treat returns of this type as meaning ms in Python. Convert to S.
                 return _var() / CONV_FACTOR;
+            }
+    };
+
+    class UniformIntDistribution : public Distribution<int32_t> {
+        private:
+            boost::uniform_int<int32_t> _distro;
+            boost::variate_generator<boost::mt19937&,
+                    boost::uniform_int<int32_t>> _var;
+        public:
+            UniformIntDistribution(const int32_t min, const int32_t max, boost::mt19937& rng) :
+                _distro(min, max),
+                _var(rng, _distro) {
+            }
+
+            virtual int32_t next() {
+                // Not for time like things, no conversion
+                return _var();
             }
     };
 }

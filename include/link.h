@@ -1,4 +1,4 @@
-#include <memory.h>
+#include <memory>
 #include "context.h"
 #include "distributions.h"
 #include "packet.h"
@@ -16,11 +16,24 @@ namespace PILO {
             Link(Context& context,
                  Distribution<Time>* latency, // In seconds?
                  BPS bandwidth, // In bps
-                 Node& a, // Endpoint
-                 Node& b);
-            void send(Node& sender, std::shared_ptr<Packet> packet);
-            Node& _a;
-            Node& _b;
+                 std::shared_ptr<Node> a, // Endpoint
+                 std::shared_ptr<Node> b);
+
+            void send(Node* sender, std::shared_ptr<Packet> packet);
+            
+            void set_up();
+
+            void set_down();
+
+            std::shared_ptr<Node> _a;
+            std::shared_ptr<Node> _b;
+        private:
+            Time _nextSchedulable;
+            enum State {
+                DOWN = 0,
+                UP
+            };
+            State _state;
     };
 }
 #endif

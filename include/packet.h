@@ -27,7 +27,6 @@ namespace PILO {
                 _size(size) {
                     _sig = source + ":" + destination + ":" + std::to_string(type);
             }
-
     };
 }
 #endif
