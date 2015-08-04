@@ -8,8 +8,8 @@ namespace PILO {
         _latency(Distribution<PILO::Time>::get_distribution(_configuration["data_link_latency"], _rng)),
         _nodes(std::move(populate_nodes())),
         _links(std::move(populate_links(10000000000))),
-        _linkRng(0, _links.size(), _rng),
-        _nodeRng(0, _nodes.size(), _rng) {
+        _linkRng(0, _links.size() - 1, _rng),
+        _nodeRng(0, _nodes.size() - 1, _rng) {
     }
 
     Simulation::node_map Simulation::populate_nodes() {

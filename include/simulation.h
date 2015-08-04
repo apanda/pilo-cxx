@@ -37,20 +37,22 @@ namespace PILO {
             }
             
             // Return a random link
-            inline std::shared_ptr<PILO::Link>& random_link() {
+            inline std::shared_ptr<PILO::Link> random_link() {
                 return std::next(std::begin(_links), _linkRng.next())->second;
             }
             
             // Return a random node
-            inline std::shared_ptr<Node>& random_node() {
-                return std::next(std::begin(_nodes), _nodeRng.next())->second;
+            inline std::shared_ptr<Node> random_node() {
+                auto count =  _nodeRng.next();
+                auto next = std::next(std::begin(_nodes), count);
+                return next->second;
             }
 
-            inline std::shared_ptr<PILO::Node>& get_node(const std::string& id) {
+            inline std::shared_ptr<PILO::Node> get_node(const std::string& id) {
                 return _nodes.at(id);
             }
 
-            inline std::shared_ptr<PILO::Link>& get_link(const std::string& id) {
+            inline std::shared_ptr<PILO::Link> get_link(const std::string& id) {
                 return _links.at(id);
             }
 
