@@ -8,7 +8,8 @@ namespace PILO {
         _name (name) {
             (void)_context;
     }
-    void Node::receive(void* packet, size_t size) {
-        std::cout << _name << " received packet of size " << size << std::endl;
+    void Node::receive(std::shared_ptr<Packet> packet) {
+        std::cout << _context.now() << "   " <<  _name << " received packet " 
+            << packet->_sig << " of size " << packet->_size << " (" << packet.use_count() << ")" << std::endl;
     }
 }

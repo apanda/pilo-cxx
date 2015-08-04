@@ -1,9 +1,10 @@
 #include "link.h"
 #include "node.h"
+#include <iostream>
 
 namespace PILO {
     Link::Link(Context& context,
-         Time latency, // In seconds?
+         Distribution<Time>* latency, // In seconds?
          BPS bandwidth, // In bps
          Node& a, // Endpoint
          Node& b) :
@@ -14,14 +15,16 @@ namespace PILO {
         _b(b) {
     }
 
-    void Link::Send(Node& sender, void* packet, size_t size) {
-        Time end_time = ((Time)size) / (_bandwidth);
-        end_time += _latency;
+    void Link::send(Node& sender, std::shared_ptr<Packet> packet) {
+        Time end_time = ((Time)packet->_size) / (_bandwidth);
+        end_time += _latency->next();
 
         if (&_a == &sender) {
-            _context.schedule(end_time, [this, packet, size](float) {this->_b.receive(packet, size);});
+            std::cout << "Send from a" << std::endl;
+            _context.schedule(end_time, [this, packet] (float) mutable {this->_b.receive(std::move(packet));});
         } else if (&_b == &sender) {
-            _context.schedule(end_time, [this, packet, size](float) {this->_a.receive(packet, size);});
+            std::cout << "Send from b" << std::endl;
+            _context.schedule(end_time, [this, packet] (float) mutable {this->_a.receive(std::move(packet));});
         }
 
     }

@@ -13,6 +13,7 @@ namespace PILO {
             Context();
             bool next();
             Time get_time();
+            inline Time now() { return _time; }
             void set_time(Time time);
             void schedule(Time delta, std::function<void(Time)> task);
         private:
