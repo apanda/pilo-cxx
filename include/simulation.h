@@ -14,19 +14,6 @@
 
 #ifndef __SIMULATION_H__
 #define __SIMULATION_H__
-namespace {
-    using namespace PILO;
-    const std::string LINKS_KEY = "links";
-    const std::string FAIL_KEY = "fail_links";
-    const std::string CRIT_KEY = "crit_links";
-    const std::string RUNFILE_KEY = "runfile";
-    const std::string TYPE_KEY = "type";
-    const std::string ARG_KEY = "args";
-    const std::string HOST_TYPE = "Host";
-    const std::string CONTROLLER_TYPE = "Control";
-    const std::string SWITCH_TYPE = "Switch";
-
-}
 namespace PILO {
     class Simulation {
         public:
@@ -59,6 +46,10 @@ namespace PILO {
             void set_all_links_up();
 
             void set_all_links_down();
+
+            void set_all_links_up_silent();
+
+            void set_all_links_down_silent();
 
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Link>> link_map;

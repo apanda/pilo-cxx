@@ -17,12 +17,12 @@ namespace PILO {
     
     void Node::notify_link_existence(Link* link) {
         // Add link
-        _links.push_back(link);
+        _links.emplace(std::make_pair(link->name(), link));
     }
 
     void Node::flood(std::shared_ptr<Packet> packet) {
         for (auto link : _links) {
-            link->send(this, packet);
+            link.second->send(this, packet);
         }
     }
 }

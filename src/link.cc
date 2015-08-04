@@ -1,15 +1,18 @@
 #include "link.h"
+#include "packet.h"
 #include "node.h"
 #include <iostream>
 #include <algorithm>
 
 namespace PILO {
     Link::Link(Context& context,
+         const std::string& name,
          Distribution<Time>* latency, // In seconds?
          BPS bandwidth, // In bps
          std::shared_ptr<Node> a, // Endpoint
          std::shared_ptr<Node> b) :
         _context(context),
+        _name(name),
         _latency(latency),
         _bandwidth(bandwidth),
         _a(std::move(a)),
@@ -55,5 +58,17 @@ namespace PILO {
         _state = DOWN;
         _a->notify_link_down(this);
         _b->notify_link_down(this);
+    }
+
+    void Link::silent_set_up() {
+        _state = UP;
+        _a->silent_link_up(this);
+        _b->silent_link_up(this);
+    }
+
+    void Link::silent_set_down() {
+        _state = DOWN;
+        _a->silent_link_down(this);
+        _b->silent_link_down(this);
     }
 }

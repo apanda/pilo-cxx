@@ -48,6 +48,7 @@ namespace PILO {
             }
 
             virtual T next() {
+                std::cout << "Const next" << std::endl;
                 return _value;
             }
     };
@@ -90,9 +91,9 @@ namespace PILO {
 
     class UniformIntDistribution : public Distribution<int32_t> {
         private:
-            boost::uniform_int<int32_t> _distro;
+            boost::uniform_smallint<int32_t> _distro;
             boost::variate_generator<boost::mt19937&,
-                    boost::uniform_int<int32_t>> _var;
+                    boost::uniform_smallint<int32_t>> _var;
         public:
             UniformIntDistribution(const int32_t min, const int32_t max, boost::mt19937& rng) :
                 _distro(min, max),

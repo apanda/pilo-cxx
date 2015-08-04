@@ -1,19 +1,25 @@
 #include <memory>
 #include "context.h"
 #include "distributions.h"
-#include "packet.h"
 #ifndef __LINK_H__
 #define __LINK_H__
 namespace PILO {
     class Node;
+    class Packet;
     /// This is equivalent to bandwidth link in the Python version.
     class Link {
         private:
             Context& _context;
+            std::string _name;
             Distribution<Time>* _latency;
             const BPS _bandwidth;
         public:
+            enum State {
+                DOWN = 0,
+                UP
+            };
             Link(Context& context,
+                 const std::string& name,
                  Distribution<Time>* latency, // In seconds?
                  BPS bandwidth, // In bps
                  std::shared_ptr<Node> a, // Endpoint
@@ -25,14 +31,18 @@ namespace PILO {
 
             void set_down();
 
+            void silent_set_up();
+
+            void silent_set_down();
+
+            inline const std::string& name() {
+                return _name;
+            }
+
             std::shared_ptr<Node> _a;
             std::shared_ptr<Node> _b;
         private:
             Time _nextSchedulable;
-            enum State {
-                DOWN = 0,
-                UP
-            };
             State _state;
     };
 }

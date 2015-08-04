@@ -1,5 +1,5 @@
 #include <memory>
-#include <vector>
+#include <unordered_map>
 #include "context.h"
 #include "packet.h"
 #include "link.h"
@@ -9,27 +9,34 @@ namespace PILO {
     class Link;
     /// This is equivalent to bandwidth link in the Python version.
     class Node {
-        private:
-
+        protected:
             Context& _context;
         public:
             Node(Context& context,
                  const std::string& name);
             
-            void receive(std::shared_ptr<Packet> packet); 
+            virtual void receive(std::shared_ptr<Packet> packet); 
 
             virtual void notify_link_existence(Link* link);
             
-            virtual void notify_link_up(Link*) {}
+            virtual void notify_link_up(Link* link) {
+                std::cout << _context.get_time() << " Link up " << link->name() << std::endl;
+            }
 
-            virtual void notify_link_down(Link*) {}
+            virtual void notify_link_down(Link* link) {
+                std::cout << _context.get_time() << " Link down " << link->name() << std::endl;
+            }
+
+            virtual void silent_link_up(Link*) {}
+
+            virtual void silent_link_down(Link*) {}
             
             void flood(std::shared_ptr<Packet> packet);
             
             const std::string _name;
 
-        private:
-            std::vector<Link*> _links;
+        protected:
+            std::unordered_map<std::string, Link*> _links;
     };
 }
 #endif
