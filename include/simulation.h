@@ -57,6 +57,8 @@ namespace PILO {
 
             void install_all_routes();
 
+            double check_routes();
+
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Link>> link_map;
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Switch>> switch_map;

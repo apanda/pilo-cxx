@@ -10,7 +10,7 @@ namespace PILO {
         // Get the flooding out of the way
         if (packet->_type >= Packet::CONTROL &&
             packet->_destination != _name &&
-            _filter.count(packet->_id) == 0) {
+            _filter.find(packet->_id) != _filter.end()) {
             flood(packet);
             _filter.emplace(packet->_id);
         }
@@ -49,7 +49,6 @@ namespace PILO {
 
     void Switch::install_flow_table(const Packet::flowtable& table) {
         for (auto rules : table) {
-            std::cout << _context.get_time() << "  " << _name << "   " << rules.first << "->" << rules.second << std::endl;
             _forwardingTable[rules.first] = rules.second;
         }
     }

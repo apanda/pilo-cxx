@@ -35,6 +35,10 @@ namespace PILO {
 
             void silent_set_down();
 
+            inline bool is_up() { return _state == UP; }
+
+            inline std::shared_ptr<Node> get_other(std::shared_ptr<Node> n) { return (n.get() == _a.get() ? _b : _a); }
+
             inline const std::string& name() {
                 return _name;
             }

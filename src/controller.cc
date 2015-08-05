@@ -53,6 +53,9 @@ namespace PILO {
 
     void Controller::add_link(const std::string& link) {
         std::vector<std::string> parts;
+        if (_links.find(link) == _links.end()) {
+            _links.emplace(link);
+        }
         boost::split(parts, link, boost::is_any_of("-"));
         //std::cout << _name << "  adding link " << link << " (" << _vertices.at(parts[0]) << "<-->" 
             //<< _vertices.at(parts[1]) << ")" <<  std::endl;
@@ -145,6 +148,11 @@ namespace PILO {
                             std::string sw = _ivertices.at(VECTOR(*path)[k]);
                             std::string nh = _ivertices.at(VECTOR(*path)[k + 1]);
                             std::string link = sw + "-" + nh;
+                            // Cannonicalize
+                            if (_links.find(link) == _links.end()) {
+                                link = nh + "-" + sw;
+                            }
+                            assert(_links.find(link) != _links.end());
                             auto rule = _flowDb.at(sw).find(psig);
                             if (rule == _flowDb.at(sw).end() ||
                                 rule->second != link) {

@@ -52,6 +52,7 @@ namespace PILO {
             std::unordered_set<std::string> _controllers;
             std::unordered_set<std::string> _switches;
             std::unordered_set<std::string> _nodes;
+            std::unordered_set<std::string> _links;
             vertex_map _vertices;
             inv_vertex_map _ivertices;
             igraph_t _graph;

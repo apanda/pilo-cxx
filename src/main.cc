@@ -53,6 +53,7 @@ int main(int argc, char* argv[]) {
     PILO::Simulation simulation(seed, configuration, topology);
     simulation.set_all_links_up_silent();
     simulation.install_all_routes();
+    std::cout << "Pre run check = " << simulation.check_routes() << std::endl;
     simulation.run();
     return 1;
 }

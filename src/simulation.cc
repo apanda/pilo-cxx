@@ -124,4 +124,46 @@ namespace PILO {
             sw->install_flow_table(diff.second);
         }
     }
+
+    double Simulation::check_routes() {
+        uint64_t checked = 0;
+        uint64_t passed = 0;
+        for (auto h1 : _others) {
+            for (auto h2 : _others) {
+                if (h1.first == h2.first) {
+                    continue;
+                }
+                checked += 1;
+                std::string sig = Packet::generate_signature(h1.first, h2.first, Packet::DATA);
+                for (auto begin_link : h1.second->_links) {
+                    std::string link = begin_link.first;
+                    auto current = h1.second;
+                    while (current.get() != h2.second.get()) {
+                        if (_links.at(link)->is_up()) {
+                            current = _links.at(link)->get_other(current);
+                            auto as_switch = std::dynamic_pointer_cast<Switch>(current);
+                            if (!as_switch) {
+                                // Maybe we have reached the end, maybe not. But this is not a switch.
+                                break;
+                            }
+                            auto entry = as_switch->_forwardingTable.find(sig);
+                            if (entry != as_switch->_forwardingTable.end()) {
+                                link = entry->second;
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    if (current.get() == h2.second.get()) {
+                        passed++;
+                        break;
+                    } 
+                }
+            }
+        }
+        std::cout << "Checked " << checked << "    passed   " << passed << std::endl;
+        return ((double)passed)/((double)checked);
+    }
 }
