@@ -7,6 +7,7 @@
 // Equivalent to LSSwitch in Python
 namespace PILO {
     class Switch : public Node {
+        friend class Simulation;
         public:
             Switch(Context& context,
                  const std::string& name);
@@ -23,12 +24,12 @@ namespace PILO {
 
             virtual void silent_link_down(Link*);
 
-            void install_flow_table(const std::unordered_map<std::string, std::string>& table);
+            void install_flow_table(const Packet::flowtable& table);
 
         private:
             std::unordered_map<std::string, Link::State> _linkState;
             std::unordered_set<uint64_t> _filter;
-            std::unordered_map<std::string, std::string> _forwardingTable;
+            Packet::flowtable _forwardingTable;
     };
 }
 #endif

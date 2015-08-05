@@ -1,5 +1,6 @@
 #include "node.h"
 #include "link.h"
+#include "packet.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <memory>
@@ -10,6 +11,7 @@
 namespace PILO {
     class Switch;
     class Controller : public Node {
+        friend class Simulation;
         public:
             Controller(Context& context,
                  const std::string& name);
@@ -31,6 +33,7 @@ namespace PILO {
             typedef std::unordered_map<std::string, std::shared_ptr<Controller>> controller_map;
             typedef std::unordered_map<std::string, igraph_integer_t> vertex_map;
             typedef std::unordered_map<igraph_integer_t, std::string> inv_vertex_map;
+            typedef std::unordered_map<std::string, Packet::flowtable> flowtable_db;
 
             void add_controllers(controller_map controllers);
             void add_switches(switch_map switches);
@@ -39,7 +42,7 @@ namespace PILO {
             void add_link(const std::string& link);
             void remove_link(const std::string& link);
 
-            void compute_paths ();
+            flowtable_db compute_paths ();
 
             virtual ~Controller() {
                 igraph_destroy(&_graph);
@@ -53,6 +56,7 @@ namespace PILO {
             inv_vertex_map _ivertices;
             igraph_t _graph;
             igraph_integer_t _usedVertices;
+            flowtable_db _flowDb;
     };
 }
 #endif

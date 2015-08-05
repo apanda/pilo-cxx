@@ -8,6 +8,7 @@ namespace PILO {
     class Node;
     class Packet {
         public:
+            typedef std::unordered_map<std::string, std::string> flowtable;
             static const std::string WILDCARD;
             static uint64_t pid;
             enum Type {
@@ -38,7 +39,7 @@ namespace PILO {
             // All the data we would ever possibly need, since I am lazy
             struct {
                 std::string link;
-                std::unordered_map<std::string, std::string> table;
+                flowtable table;
                 std::unordered_map<std::string, Link::State> linkState;
             } data;
             // Let us revisit this at some point
@@ -49,7 +50,7 @@ namespace PILO {
                 _destination(destination),
                 _type(type),
                 _size(size) {
-                    _sig = source + ":" + destination + ":" + std::to_string(type);
+                    _sig =  generate_signature(_source, _destination, _type);
                     _id = pid;
                     pid++;
                     std::cout << "packet_obj " << _id << " created " << std::endl;
@@ -57,6 +58,10 @@ namespace PILO {
 
             virtual ~Packet() {
                 std::cout << "packet_obj " << _id << " destroyed " << std::endl;
+            }
+
+            static std::string generate_signature(const std::string& src, const std::string& dest, Type type) {
+                return src + ":" + dest + ":" + std::to_string(type);
             }
 
             static std::shared_ptr<Packet> make_packet(std::shared_ptr<Node> src, std::shared_ptr<Node> dest,

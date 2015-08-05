@@ -51,6 +51,7 @@ namespace PILO {
                 _switches.emplace(std::make_pair(node_str, sw));
             } else if (type_str == CONTROLLER_TYPE) {
                 auto c = std::make_shared<Controller>(_context, node_str);
+                std::cout << "Controller " << node_str << std::endl;
                 nodeMap.emplace(std::make_pair(node_str, c));
                 _controllers.emplace(std::make_pair(node_str, c));
             } else {
@@ -109,6 +110,18 @@ namespace PILO {
     void Simulation::compute_all_paths() {
         for (auto c : _controllers) {
             c.second->compute_paths();
+        }
+    }
+
+    void Simulation::install_all_routes() {
+        Controller::flowtable_db diffs;
+        for (auto c : _controllers) {
+            diffs = std::move(c.second->compute_paths());
+        }
+        
+        for (auto diff : diffs) {
+            auto sw = _switches.at(diff.first);
+            sw->install_flow_table(diff.second);
         }
     }
 }

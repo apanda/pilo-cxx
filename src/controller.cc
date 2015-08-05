@@ -87,6 +87,7 @@ namespace PILO {
         int count = 0;
         for (auto sw : switches) {
             _controllers.emplace(sw.first);
+            _flowDb.emplace(std::make_pair(sw.first, Packet::flowtable()));
             igraph_integer_t idx = count + _usedVertices;
             _vertices[sw.first] = idx;
             _ivertices[idx] = sw.first;
@@ -109,33 +110,50 @@ namespace PILO {
         _usedVertices += count;
     }
 
-    void Controller::compute_paths() {
+    Controller::flowtable_db Controller::compute_paths() {
         igraph_vector_t l;
         igraph_vector_ptr_t p;
-        for (auto v0 : _nodes) {
-            int v0_idx = _vertices.at(v0);
+        flowtable_db diffs;
+        int bias = 0;
+
+        for (int v0_idx = 0; v0_idx < _usedVertices; v0_idx++) {
+            std::string v0 = _ivertices.at(v0_idx);
+
+            if(_nodes.count(v0) == 0) {
+                continue;
+            }
+
             igraph_vector_ptr_init(&p, 0);
             igraph_vector_init(&l, 0);
             int ret = igraph_get_all_shortest_paths(&_graph, &p, &l, _vertices.at(v0), igraph_vss_all(), IGRAPH_ALL);
+
+            (void)ret; // I like asserts
             assert(ret == 0);
             int len = igraph_vector_size(&l);
-            std::cout << _name << " Return len for " << v0 << " is " << len << std::endl;
             int base_idx = 0;
 
-            for (int i = 0; i < len; i++) {
-                int paths = VECTOR(l)[i];
-                std::string v1 = _ivertices.at(i);
-                if (_nodes.count(v1) > 0 && v0_idx != i) {
-                    std::cout << "\t " << v0 << "   " << v1 << std::endl;
-                    for (int j = 0; j < paths; j++) {
-                        igraph_vector_t* path = (igraph_vector_t*)VECTOR(p)[j + base_idx];
+            for (int v1_idx = 0; v1_idx < len; v1_idx++) {
+                std::string v1 = _ivertices.at(v1_idx);
+                int paths = VECTOR(l)[v1_idx];
+                if (_nodes.count(v1) > 0 && v0_idx != v1_idx) {
+                    if (paths > 0) {
+                        std::string psig = Packet::generate_signature(v0, v1, Packet::DATA);
+                        int path_idx = bias % paths;
+                        igraph_vector_t* path = (igraph_vector_t*)VECTOR(p)[path_idx + base_idx];
                         int path_len = igraph_vector_size(path);
-                        std::cout << "\t\t";
-                        for (int k = 0; k < path_len; k++) {
-                            std::cout << _ivertices.at(VECTOR(*path)[k]) << " -- ";
+                        for (int k = 1; k < path_len - 1; k++) {
+                            std::string sw = _ivertices.at(VECTOR(*path)[k]);
+                            std::string nh = _ivertices.at(VECTOR(*path)[k + 1]);
+                            std::string link = sw + "-" + nh;
+                            auto rule = _flowDb.at(sw).find(psig);
+                            if (rule == _flowDb.at(sw).end() ||
+                                rule->second != link) {
+                                _flowDb[sw][psig] = link;
+                                diffs[sw][psig] = link;
+                            }
                         }
-                        std::cout << std::endl;
                     }
+                    bias ++;
                 }
                 base_idx += paths;
             }
@@ -143,5 +161,6 @@ namespace PILO {
             igraph_vector_ptr_destroy_all(&p);
             igraph_vector_destroy(&l);
         }
+        return diffs;
     }
 }

@@ -9,6 +9,7 @@ namespace PILO {
     class Link;
     /// This is equivalent to bandwidth link in the Python version.
     class Node {
+        friend class Simulation;
         protected:
             Context& _context;
         public:

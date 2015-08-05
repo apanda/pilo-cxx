@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
 
     PILO::Simulation simulation(seed, configuration, topology);
     simulation.set_all_links_up_silent();
-    simulation.compute_all_paths();
+    simulation.install_all_routes();
     simulation.run();
     return 1;
 }

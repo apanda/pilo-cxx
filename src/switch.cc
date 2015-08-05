@@ -47,8 +47,9 @@ namespace PILO {
         }
     }
 
-    void Switch::install_flow_table(const std::unordered_map<std::string, std::string>& table) {
+    void Switch::install_flow_table(const Packet::flowtable& table) {
         for (auto rules : table) {
+            std::cout << _context.get_time() << "  " << _name << "   " << rules.first << "->" << rules.second << std::endl;
             _forwardingTable[rules.first] = rules.second;
         }
     }
