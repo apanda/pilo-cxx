@@ -52,6 +52,11 @@ namespace PILO {
                     _sig = source + ":" + destination + ":" + std::to_string(type);
                     _id = pid;
                     pid++;
+                    std::cout << "packet_obj " << _id << " created " << std::endl;
+            }
+
+            virtual ~Packet() {
+                std::cout << "packet_obj " << _id << " destroyed " << std::endl;
             }
 
             static std::shared_ptr<Packet> make_packet(std::shared_ptr<Node> src, std::shared_ptr<Node> dest,

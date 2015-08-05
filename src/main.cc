@@ -52,12 +52,7 @@ int main(int argc, char* argv[]) {
 
     PILO::Simulation simulation(seed, configuration, topology);
     simulation.set_all_links_up_silent();
-    //int count = 0;
-    for (int i = 0; i < 10; i++) {
-        auto node = simulation.random_link();
-        simulation._context.schedule(1.0 + (2.0 * i), 
-                [node] (PILO::Time) { node->set_down(); });
-    }
+    simulation.compute_all_paths();
     simulation.run();
     return 1;
 }

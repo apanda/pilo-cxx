@@ -1,5 +1,4 @@
 #include "simulation.h"
-#include "switch.h"
 namespace {
     const std::string LINKS_KEY = "links";
     const std::string FAIL_KEY = "fail_links";
@@ -8,7 +7,7 @@ namespace {
     const std::string TYPE_KEY = "type";
     const std::string ARG_KEY = "args";
     const std::string HOST_TYPE = "Host";
-    const std::string CONTROLLER_TYPE = "Control";
+    const std::string CONTROLLER_TYPE = "LSGossipControl";
     const std::string SWITCH_TYPE = "LinkStateSwitch";
 }
 namespace PILO {    
@@ -18,10 +17,21 @@ namespace PILO {
         _configuration(YAML::LoadFile(configuration)),
         _topology(YAML::LoadFile(topology)),
         _latency(Distribution<PILO::Time>::get_distribution(_configuration["data_link_latency"], _rng)),
+        _switches(),
+        _controllers(),
+        _others(),
         _nodes(std::move(populate_nodes())),
         _links(std::move(populate_links(10000000000))),
         _linkRng(0, _links.size() - 1, _rng),
         _nodeRng(0, _nodes.size() - 1, _rng) {
+        
+        // Populate controller information
+        for (auto controller : _controllers) {
+            auto cobj = controller.second;
+            cobj->add_controllers(_controllers);
+            cobj->add_switches(_switches);
+            cobj->add_nodes(_others);
+        }
     }
 
     Simulation::node_map Simulation::populate_nodes() {
@@ -36,9 +46,17 @@ namespace PILO {
             }
             std::string type_str = node.second[TYPE_KEY].as<std::string>();
             if (type_str == SWITCH_TYPE) {
-                nodeMap.emplace(std::make_pair(node_str, std::make_shared<Switch>(_context, node_str)));
+                auto sw = std::make_shared<Switch>(_context, node_str);
+                nodeMap.emplace(std::make_pair(node_str, sw));
+                _switches.emplace(std::make_pair(node_str, sw));
+            } else if (type_str == CONTROLLER_TYPE) {
+                auto c = std::make_shared<Controller>(_context, node_str);
+                nodeMap.emplace(std::make_pair(node_str, c));
+                _controllers.emplace(std::make_pair(node_str, c));
             } else {
-                nodeMap.emplace(std::make_pair(node_str, std::make_shared<Node>(_context, node_str)));
+                auto n = std::make_shared<Node>(_context, node_str);
+                nodeMap.emplace(std::make_pair(node_str, n));
+                _others.emplace(std::make_pair(node_str, n));
             }
         }
         return nodeMap;
@@ -73,12 +91,24 @@ namespace PILO {
     void Simulation::set_all_links_up_silent() {
         for (auto link : _links) {
             link.second->silent_set_up();
+            for (auto controller : _controllers) {
+                controller.second->add_link(link.first);
+            }
         }
     }
 
     void Simulation::set_all_links_down_silent() {
         for (auto link : _links) {
             link.second->silent_set_down();
+            for (auto controller : _controllers) {
+                controller.second->remove_link(link.first);
+            }
+        }
+    }
+
+    void Simulation::compute_all_paths() {
+        for (auto c : _controllers) {
+            c.second->compute_paths();
         }
     }
 }

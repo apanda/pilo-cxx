@@ -80,7 +80,6 @@ namespace PILO {
 
     void Switch::silent_link_up(Link* link) {
         Node::silent_link_up(link);
-        std::cout << "Link up (shhhhh) " << link->name() << std::endl;
         if (_linkState.at(link->name()) == Link::DOWN) {
             _linkState[link->name()] = Link::UP;
         }
@@ -88,7 +87,6 @@ namespace PILO {
 
     void Switch::silent_link_down(Link* link) {
         Node::silent_link_down(link);
-        std::cout << "Link down (shhhhh) " << link->name() << std::endl;
         if (_linkState.at(link->name()) == Link::UP) {
             _linkState[link->name()] = Link::DOWN;
         }

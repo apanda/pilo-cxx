@@ -11,6 +11,8 @@
 #include "node.h"
 #include "distributions.h"
 #include "packet.h"
+#include "switch.h"
+#include "controller.h"
 
 #ifndef __SIMULATION_H__
 #define __SIMULATION_H__
@@ -50,9 +52,13 @@ namespace PILO {
             void set_all_links_up_silent();
 
             void set_all_links_down_silent();
+            
+            void compute_all_paths();
 
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Link>> link_map;
+            typedef std::unordered_map<std::string, std::shared_ptr<PILO::Switch>> switch_map;
+            typedef std::unordered_map<std::string, std::shared_ptr<PILO::Controller>> controller_map;
 
             PILO::Context _context;
         private:
@@ -68,6 +74,9 @@ namespace PILO {
             const YAML::Node _topology;
 
             Distribution<PILO::Time> *_latency; 
+            switch_map _switches;
+            controller_map _controllers;
+            node_map _others;
             node_map _nodes;
             link_map _links;
             UniformIntDistribution _linkRng;
