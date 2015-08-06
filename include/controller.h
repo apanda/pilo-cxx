@@ -3,6 +3,7 @@
 #include "packet.h"
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 #include <memory>
 #include <igraph/igraph.h> // Graph processing
 #ifndef __CONTROLLER_H__
@@ -10,6 +11,32 @@
 // Equivalent to LSController in Python
 namespace PILO {
     class Switch;
+    class Log  {
+        public:
+            // Can optimize these if needed.
+            typedef std::unordered_map<std::string, std::vector<Link::State>> LinkLog;
+            typedef std::unordered_map<std::string, std::vector<bool>> LogCommit;
+            typedef std::unordered_map<std::string, uint64_t> LogMarked;
+            typedef std::unordered_map<std::string, size_t> LogSizes;
+
+            Log();
+            void open_log_link(const std::string& link);
+            void add_link_event(const std::string& link, uint64_t version, Link::State state);
+            void compute_gaps(const std::shared_ptr<Packet>& packet); 
+            std::vector<Packet::GossipLog> compute_response(const std::shared_ptr<Packet>& packet);
+            void merge_logs(const std::shared_ptr<Packet>& packet);
+            const size_t INITIAL_SIZE = 1024;
+            const size_t HWM = 8192;
+            const size_t GROW = 128;
+        private:
+            std::vector<uint64_t> compute_link_gap(const std::string& link, size_t&);
+            LinkLog _log;
+            LogCommit _commit;
+            LogMarked _marked;
+            LogSizes _sizes;
+            LogMarked _max;
+            
+    };
     class Controller : public Node {
         friend class Simulation;
         public:
@@ -75,6 +102,7 @@ namespace PILO {
             std::unordered_set<std::string> _existingLinks;
             Time _refresh;
             Time _gossip;
+            Log _log;
     };
 }
 #endif

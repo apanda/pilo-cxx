@@ -1,6 +1,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 #include "link.h"
 #ifndef __PACKET_H__
 #define __PACKET_H__
@@ -40,6 +41,12 @@ namespace PILO {
             std::string _sig;
             size_t _size;
             uint64_t _id;
+
+            struct GossipLog {
+                std::string link;
+                Link::State state;
+                uint64_t version;
+            };
             
             // All the data we would ever possibly need, since I am lazy
             struct {
@@ -48,6 +55,9 @@ namespace PILO {
                 flowtable table;
                 std::unordered_map<std::string, Link::State> linkState;
                 std::unordered_map<std::string, uint64_t> linkVersion;
+                std::unordered_map<std::string, std::vector<uint64_t>> gaps;
+                std::unordered_map<std::string, uint64_t> logMax;
+                std::vector<GossipLog> gossipResponse;
             } data;
             // Let us revisit this at some point
             //void* data;

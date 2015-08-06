@@ -1,6 +1,9 @@
 #include "controller.h"
 #include "packet.h"
 #include <boost/algorithm/string.hpp>
+#include <algorithm>
+#define likely(x)      __builtin_expect(!!(x), 1)
+#define unlikely(x)    __builtin_expect(!!(x), 0)
 namespace PILO {
     Controller::Controller(Context& context, const std::string& name, const Time refresh, const Time gossip):
         Node(context, name),
@@ -10,7 +13,8 @@ namespace PILO {
         _vertices(),
         _filter(),
         _refresh(refresh),
-        _gossip(gossip) {
+        _gossip(gossip),
+        _log() {
         // Create an empty graph
         igraph_empty(&_graph, 0, IGRAPH_UNDIRECTED);
         _usedVertices = 0;
@@ -88,11 +92,19 @@ namespace PILO {
     }
 
     void Controller::handle_gossip(const std::shared_ptr<Packet>& packet) {
-        //std::cout << _context.get_time() << " " << _name << " handle_gossip" << std::endl;
+        auto response = _log.compute_response(packet);
+        if (response.size() > 0) {
+            std::cout << _context.now() << " " << _name << " sending gossip response " << std::endl;
+            auto rpacket = Packet::make_packet(_name, packet->_source, Packet::GOSSIP_REP, 
+                                                Packet::HEADER + response.size() * (64 + 64 + 8));
+            rpacket->data.gossipResponse = std::move(response);
+            flood(rpacket);
+        }
     }
 
     void Controller::handle_gossip_rep(const std::shared_ptr<Packet>& packet) {
-        //std::cout << _context.get_time() << " " << _name << " handle_gossip_rep" << std::endl;
+        std::cout << _context.get_time() << " " << _name << " handle_gossip_rep" << std::endl;
+        _log.merge_logs(packet);
     }
 
     void Controller::apply_patch(flowtable_db& diff) {
@@ -105,7 +117,7 @@ namespace PILO {
             size_t packet_size = Packet::HEADER + patch_size * (64 + Packet::HEADER);
             auto update = Packet::make_packet(_name, dest, Packet::CHANGE_RULES, packet_size);
             update->data.table.swap(patch);
-            flood(update);
+            flood(std::move(update));
         }
     }
 
@@ -133,6 +145,7 @@ namespace PILO {
         if (_links.find(link) == _links.end()) {
             _links.emplace(link);
             _linkVersion.emplace(std::make_pair(link, version));
+            _log.open_log_link(link);
         } else {
             // We have already seen this link state update (or a newer one)
             if (version <= _linkVersion.at(link)) {
@@ -141,6 +154,7 @@ namespace PILO {
             }
         }
         _linkVersion[link] = version;
+        _log.add_link_event(link, version, Link::UP);
         if (_existingLinks.find(link) != _existingLinks.end()) {
             return false; 
         }
@@ -158,6 +172,7 @@ namespace PILO {
         }
 
         _linkVersion[link] = version;
+        _log.add_link_event(link, version, Link::DOWN);
 
         if (_existingLinks.find(link) == _existingLinks.end()) {
             return false;
@@ -283,14 +298,141 @@ namespace PILO {
     void Controller::send_switch_info_request() {
         //std::cout << _context.get_time() << " " << _name << " switch info request starting " << std::endl;
         auto req = Packet::make_packet(_name, Packet::SWITCH_INFORMATION_REQ, Packet::HEADER);
-        flood(req);
+        flood(std::move(req));
         _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
     }
     
     void Controller::send_gossip_request() {
-        std::cout << _context.now() << " " << _name << " gossip" << std::endl;
         auto req = Packet::make_packet(_name, Packet::GOSSIP, Packet::HEADER);
-        flood(req);
+        _log.compute_gaps(req);
+        flood(std::move(req));
         _context.schedule(_gossip, [&](double) {this->send_gossip_request();});
+    }
+
+    Log::Log() :
+        _log(),
+        _commit(),
+        _marked(),
+        _sizes(),
+        _max() {
+    }
+
+    void Log::open_log_link(const std::string& link) {
+        _log.emplace(std::make_pair(link, std::vector<Link::State>(INITIAL_SIZE))); 
+        _commit.emplace(std::make_pair(link, std::vector<bool>(INITIAL_SIZE))); 
+        // Nothing has been marked yet
+        _max.emplace(std::make_pair(link, 0));
+        _marked.emplace(std::make_pair(link, 1)); 
+        _sizes.emplace(std::make_pair(link, INITIAL_SIZE)); 
+
+        _log.at(link).emplace(_log[link].begin(), Link::DOWN);
+        _commit.at(link).emplace(_commit[link].begin(), true);
+    }
+
+    void Log::add_link_event(const std::string& link, uint64_t version, Link::State state) {
+        assert(_log.find(link) != _log.end());
+        while (unlikely(version >= _sizes.at(link))) {
+            std::cout << "Growing log" << std::endl;
+            size_t new_size;
+            size_t size = _sizes.at(link);
+            if (likely(size < HWM)) {
+                new_size = size * 2;
+            } else {
+                // Be cowardly and prevent unbounded growth.
+                new_size = version + GROW;
+            }
+            _log.at(link).resize(new_size);
+            _commit.at(link).resize(new_size);
+            _sizes[link] = new_size;
+        }
+        _log[link].emplace(_log[link].begin() + version, state);
+        _commit[link].emplace(_commit[link].begin() + version, true);
+        if (_max.at(link) < version) {
+            _max[link] = version;
+        }
+    }
+    
+    void Log::compute_gaps(const std::shared_ptr<Packet>& packet) {
+        size_t packet_size = 0;
+        for (auto l : _max) {
+            packet_size += (64 + 64); // 64 bit for link ID, 64 bit for version 
+            packet->data.logMax.emplace(l.first, l.second);
+            size_t gap_size;
+            packet->data.gaps.emplace(l.first, std::move(compute_link_gap(l.first, gap_size)));
+            packet_size += (gap_size * 2 * 64); // 64 bit for each side of the gap
+        }
+        packet->_size += packet_size; 
+
+    }
+    
+    std::vector<uint64_t> Log::compute_link_gap(const std::string& link, size_t& gaps_found) {
+        std::vector<uint64_t> gaps;
+        uint64_t i = _marked.at(link);
+        bool first = true;
+        gaps_found = 0;
+        while (i < _max.at(link)) {
+            // Increment i until we find a missing piece.
+            while (_commit.at(link).at(i)) i++;
+            if (first) {
+                _marked[link] = i;
+                first = false;
+            }
+            if (i < _max.at(link)) {
+                std::cout << "Found gap" << std::endl;
+                // Found a gap
+                gaps.push_back(i);
+                // Figure out where gap ends
+                while (!_commit.at(link).at(i) && i < _max.at(link)) i++;
+                assert(i <= _max.at(link));
+                gaps.push_back(i);
+                gaps_found += 1;
+            }
+        }
+        return gaps;
+    }
+    
+    std::vector<Packet::GossipLog> Log::compute_response(const std::shared_ptr<Packet>& packet) {
+        assert(packet->_type == Packet::GOSSIP);
+        std::vector<Packet::GossipLog> log;
+        for (auto lv : packet->data.logMax) {
+            // Newer entries than are known
+            auto link = lv.first;
+            if (lv.second < _max.at(link)) {
+                for (uint64_t i = lv.second; i <= _max.at(link); i++) {
+                    if (_commit.at(link).at(i)) {
+                        log.emplace_back(Packet::GossipLog{.link=lv.first, 
+                                                           .state=_log.at(link).at(i),
+                                                           .version=i});
+                    }
+                }
+            }
+
+            // See if we can fill any gaps
+            for (int idx = 0; idx < packet->data.gaps.at(link).size(); idx+=2) {
+                uint64_t begin = packet->data.gaps.at(link).at(idx);
+                uint64_t end = std::min(packet->data.gaps.at(link).at(idx + 1), _max.at(link));
+                for (uint64_t i = begin; i < end; i++) {
+                    if (_commit.at(link).at(i)) {
+                        log.emplace_back(Packet::GossipLog{.link=lv.first, 
+                                                           .state=_log.at(link).at(i),
+                                                           .version=i});
+                    }
+                }
+            }
+        }
+        return log;
+    }
+
+    void Log::merge_logs(const std::shared_ptr<Packet>& packet) {
+        assert(packet->_type == Packet::GOSSIP_REP);
+        for (auto log : packet->data.gossipResponse) {
+            if (!_commit.at(log.link).at(log.version)) {
+                _commit.at(log.link)[log.version] = true;
+                _log.at(log.link)[log.version] = log.state;
+                if (_max.at(log.link) < log.version) {
+                    _max[log.link] = log.version;
+                }
+            } 
+        }
     }
 }
