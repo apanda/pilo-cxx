@@ -3,17 +3,31 @@
 namespace PILO {
     Switch::Switch(Context& context, const std::string& name):
         Node(context, name),
-        _linkState() {
+        _linkState(),
+        _filter(), 
+        _forwardingTable(){
     }
 
-    void Switch::receive(std::shared_ptr<Packet> packet) {
+    void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
         // Get the flooding out of the way
         if (packet->_type >= Packet::CONTROL &&
             packet->_destination != _name &&
-            _filter.find(packet->_id) != _filter.end()) {
-            flood(packet);
+            _filter.find(packet->_id) == _filter.end()) {
+            //std::cout << _name << " Flooding " << packet->_type << "   " << packet->_destination << std::endl;
+            flood(packet, link->name());
             _filter.emplace(packet->_id);
-        }
+        } /*else {*/
+            //std::cout << _name << " Not flooding " << packet->_type << "   " << packet->_destination << std::endl;
+            //if (!(packet->_type >= Packet::CONTROL)) {
+                //std::cout << "\t\t because not control" << std::endl;
+            //}
+            //if (!(packet->_destination != _name)) {
+                //std::cout << "\t\t because not control" << std::endl;
+            //}
+            //if (!(_filter.find(packet->_id) == _filter.end())) {
+                //std::cout << "\t\t because filtered" << std::endl;
+            //}
+        /*}*/
 
         if (packet->_type >= Packet::CONTROL &&
              (packet->_destination == _name ||
@@ -23,12 +37,13 @@ namespace PILO {
                 case Packet::CHANGE_RULES:
                     install_flow_table(packet->data.table);
                     break;
-                case Packet::SWITCH_INFORMATION: {
+                case Packet::SWITCH_INFORMATION_REQ: {
                         auto response = Packet::make_packet(_name, packet->_source, 
-                                Packet::SWITCH_INFORMATION_REQ, 
-                                Packet::HEADER + (64 + 8) * _linkState.size());
+                                Packet::SWITCH_INFORMATION, 
+                                Packet::HEADER + (64 + 64 + 8) * _linkState.size());
                         for (auto link : _linkState) {
                             response->data.linkState[link.first] = link.second;
+                            response->data.linkVersion[link.first] = _links.at(link.first)->version(); 
                         }
                         flood(response);
                     }
@@ -48,6 +63,7 @@ namespace PILO {
     }
 
     void Switch::install_flow_table(const Packet::flowtable& table) {
+        //std::cout << _context.get_time() << " " << _name << " installing rules" << std::endl;
         for (auto rules : table) {
             _forwardingTable[rules.first] = rules.second;
         }
@@ -64,6 +80,7 @@ namespace PILO {
             _linkState[link->name()] = Link::UP;
             auto packet = Packet::make_packet(_name, Packet::LINK_UP, Packet::LINK_UP_SIZE);
             packet->data.link = link->name();
+            packet->data.version = link->version();
             flood(packet);
         }
     }
@@ -74,6 +91,7 @@ namespace PILO {
             _linkState[link->name()] = Link::DOWN;
             auto packet = Packet::make_packet(_name, Packet::LINK_DOWN, Packet::LINK_DOWN_SIZE);
             packet->data.link = link->name();
+            packet->data.version = link->version();
             flood(packet);
         }
     }

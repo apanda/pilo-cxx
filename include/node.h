@@ -16,7 +16,7 @@ namespace PILO {
             Node(Context& context,
                  const std::string& name);
             
-            virtual void receive(std::shared_ptr<Packet> packet); 
+            virtual void receive(std::shared_ptr<Packet> packet, Link* link); 
 
             virtual void notify_link_existence(Link* link);
             
@@ -33,6 +33,8 @@ namespace PILO {
             virtual void silent_link_down(Link*) {}
             
             void flood(std::shared_ptr<Packet> packet);
+
+            void flood(std::shared_ptr<Packet> packet, const std::string& l);
             
             const std::string _name;
 

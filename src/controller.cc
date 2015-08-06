@@ -2,32 +2,94 @@
 #include "packet.h"
 #include <boost/algorithm/string.hpp>
 namespace PILO {
-    Controller::Controller(Context& context, const std::string& name):
+    Controller::Controller(Context& context, const std::string& name, const Time refresh):
         Node(context, name),
         _controllers(),
         _switches(), 
         _nodes(),
-        _vertices() {
+        _vertices(),
+        _filter(),
+        _refresh(refresh) {
         // Create an empty graph
         igraph_empty(&_graph, 0, IGRAPH_UNDIRECTED);
         _usedVertices = 0;
+        _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
     }
 
-    void Controller::receive(std::shared_ptr<Packet> packet) {
+    void Controller::receive(std::shared_ptr<Packet> packet, Link* link) {
+        if (_filter.find(packet->_id) != _filter.end()) {
+            return;
+        }
+        _filter.emplace(packet->_id);
         if (packet->_type >= Packet::CONTROL &&
              (packet->_destination == _name ||
               packet->_destination == Packet::WILDCARD)) {
-            // If the packet is intended for the switch, process it.
+            // If the packet is intended for the controller, process it.
             switch (packet->_type) {
-                case Packet::CHANGE_RULES:
+                case Packet::LINK_UP:
+                    handle_link_up(packet);
                     break;
-                case Packet::SWITCH_INFORMATION: {
-                    }
+                case Packet::LINK_DOWN:
+                    handle_link_down(packet);
+                    break;
+                case Packet::SWITCH_INFORMATION:
+                    handle_switch_information(packet);
                     break;
                 default:
                     break;
                     // Do nothing
             }
+        }
+    }
+
+    void Controller::handle_switch_information(const std::shared_ptr<Packet>& packet) {
+        //std::cout << _context.get_time() << " " << _name << " switch info received " << packet->_source << std::endl;
+        bool changes = false;
+        for (auto lv : packet->data.linkVersion) {
+            if (lv.second > _linkVersion.at(lv.first)) {
+                changes = true;
+                if (packet->data.linkState.at(lv.first) == Link::UP) {
+                    add_link(lv.first, lv.second);
+                } else if (packet->data.linkState.at(lv.first) == Link::DOWN) {
+                    remove_link(lv.first, lv.second);
+                }
+            }
+        }
+        if (changes) {
+            auto patch = compute_paths();
+            apply_patch(patch);
+        }
+    }
+
+    void Controller::handle_link_up(const std::shared_ptr<Packet>& packet) {
+        //std::cout << _context.get_time() << " " << _name << " responding to link up" << std::endl;
+        auto link = packet->data.link;
+        if (add_link(link, packet->data.version)) {
+            auto patch = compute_paths();
+            apply_patch(patch);
+        }
+    }
+
+    void Controller::handle_link_down(const std::shared_ptr<Packet>& packet) {
+        //std::cout << _context.get_time() << " " << _name << " responding to link down" << std::endl;
+        auto link = packet->data.link;
+        if (remove_link(link, packet->data.version)) {
+            auto patch = compute_paths();
+            apply_patch(patch);
+        }
+    }
+
+    void Controller::apply_patch(flowtable_db& diff) {
+        for (auto part : diff) {
+            auto dest = part.first;
+            auto patch = part.second;
+            size_t patch_size = patch.size();
+            //std::cout << _context.get_time() << " " << _name << " sending a patch to " << dest << std::endl;
+            // Each rule is header + link to go out
+            size_t packet_size = Packet::HEADER + patch_size * (64 + Packet::HEADER);
+            auto update = Packet::make_packet(_name, dest, Packet::CHANGE_RULES, packet_size);
+            update->data.table.swap(patch);
+            flood(update);
         }
     }
 
@@ -51,25 +113,48 @@ namespace PILO {
         Node::silent_link_down(link);
     }
 
-    void Controller::add_link(const std::string& link) {
-        std::vector<std::string> parts;
+    bool Controller::add_link(const std::string& link, uint64_t version) {
         if (_links.find(link) == _links.end()) {
             _links.emplace(link);
+            _linkVersion.emplace(std::make_pair(link, version));
+        } else {
+            // We have already seen this link state update (or a newer one)
+            if (version <= _linkVersion.at(link)) {
+                std::cout << _context.get_time() << "  " << _name << " rejected due to version " << std::endl;
+                return false;
+            }
         }
+        _linkVersion[link] = version;
+        if (_existingLinks.find(link) != _existingLinks.end()) {
+            return false; 
+        }
+        std::vector<std::string> parts;
+        _existingLinks.emplace(link);
         boost::split(parts, link, boost::is_any_of("-"));
-        //std::cout << _name << "  adding link " << link << " (" << _vertices.at(parts[0]) << "<-->" 
-            //<< _vertices.at(parts[1]) << ")" <<  std::endl;
         igraph_add_edge(&_graph, _vertices.at(parts[0]), _vertices.at(parts[1]));
+        return true;
     }
 
-    void Controller::remove_link(const std::string& link) {
+    bool Controller::remove_link(const std::string& link, uint64_t version) {
+        if (version <= _linkVersion.at(link)) {
+            std::cout << _context.get_time() << "  " << _name << " rejected due to version " << std::endl;
+            return false;
+        }
+
+        _linkVersion[link] = version;
+
+        if (_existingLinks.find(link) == _existingLinks.end()) {
+            return false;
+        }
+
         std::vector<std::string> parts;
+        _existingLinks.erase(link);
         boost::split(parts, link, boost::is_any_of("-"));
         igraph_integer_t eid;
         igraph_get_eid(&_graph, &eid, _vertices.at(parts[0]), _vertices.at(parts[1]), IGRAPH_UNDIRECTED, 0);
-        if (eid != -1) {
-            igraph_delete_edges(&_graph, igraph_ess_1(eid));
-        }
+        assert(eid != -1);
+        igraph_delete_edges(&_graph, igraph_ess_1(eid));
+        return true;
     }
 
     void Controller::add_controllers(controller_map controllers) {
@@ -158,9 +243,16 @@ namespace PILO {
                                 rule->second != link) {
                                 _flowDb[sw][psig] = link;
                                 diffs[sw][psig] = link;
+                            } else {
                             }
                         }
+                    } 
+#if 0
+                    else {
+                        std::cout << "Cannot find path between " << v0 << "   " << v1 << std::endl;
+                        std::cout << "\t\t" << " edge count for graph is " << igraph_ecount(&_graph) << std::endl;
                     }
+#endif
                     bias ++;
                 }
                 base_idx += paths;
@@ -170,5 +262,11 @@ namespace PILO {
             igraph_vector_destroy(&l);
         }
         return diffs;
+    }
+
+    void Controller::send_switch_info_request() {
+        auto req = Packet::make_packet(_name, Packet::SWITCH_INFORMATION_REQ, Packet::HEADER);
+        flood(req);
+        _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
     }
 }

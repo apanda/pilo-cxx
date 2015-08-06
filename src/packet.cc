@@ -3,6 +3,17 @@
 namespace PILO {
     const std::string Packet::WILDCARD = "ALL";
     uint64_t Packet::pid = 0;
+    const std::string Packet::IType[] = {
+        "DATA",
+        "NOP",
+        "ECHO",
+        "LINK_UP",
+        "LINK_DOWN",
+        "CHANGE_RULES",
+        "SWITCH_INFORMATION",
+        "SWITCH_INFORMATION_REQ",
+        "END"
+    };
     std::shared_ptr<Packet> Packet::make_packet(std::shared_ptr<Node> src, std::shared_ptr<Node> dest,
                         Packet::Type type, size_t size) {
         return Packet::make_packet(src->_name, dest->_name, type, size);

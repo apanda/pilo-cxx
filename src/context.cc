@@ -1,10 +1,11 @@
 #include "context.h"
 namespace PILO {
-    Context::Context():
-        _time(0.0) {
+    Context::Context(Time end):
+        _time(0.0),
+        _end(end) {
     }
 
-    Time Context::get_time() {
+    Time Context::get_time() const {
         return _time;
     }
 
@@ -13,7 +14,7 @@ namespace PILO {
     }
 
     bool Context::next() {
-        if (_queue.empty()) {
+        if (_queue.empty() || _time > _end) {
             return false;
         }
         Time time;
@@ -22,7 +23,7 @@ namespace PILO {
         _queue.pop();
         _time = time;
         task(_time);
-        return !_queue.empty();
+        return (!_queue.empty() && _time <= _end);
     }
     
     void Context::schedule(Time delta, std::function<void(Time)> task) {

@@ -11,17 +11,21 @@ namespace {
     const std::string SWITCH_TYPE = "LinkStateSwitch";
 }
 namespace PILO {    
-    Simulation::Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology) :
+    Simulation::Simulation(const uint32_t seed, const std::string& configuration, 
+            const std::string& topology, const Time endTime, const Time refresh, const BPS bw) :
+        _context(endTime),
         _seed(seed),
         _rng(_seed),
         _configuration(YAML::LoadFile(configuration)),
         _topology(YAML::LoadFile(topology)),
         _latency(Distribution<PILO::Time>::get_distribution(_configuration["data_link_latency"], _rng)),
+        _vmap(),
+        _ivmap(),
         _switches(),
         _controllers(),
         _others(),
-        _nodes(std::move(populate_nodes())),
-        _links(std::move(populate_links(10000000000))),
+        _nodes(std::move(populate_nodes(refresh))),
+        _links(std::move(populate_links(bw))),
         _linkRng(0, _links.size() - 1, _rng),
         _nodeRng(0, _nodes.size() - 1, _rng) {
         
@@ -34,8 +38,10 @@ namespace PILO {
         }
     }
 
-    Simulation::node_map Simulation::populate_nodes() {
+    Simulation::node_map Simulation::populate_nodes(Time refresh) {
+        igraph_empty(&_graph, 0, IGRAPH_UNDIRECTED);
         node_map nodeMap;
+        igraph_integer_t count = 0;
         for (auto& node : _topology) {
             std::string node_str = node.first.as<std::string>();
             if (node_str == LINKS_KEY ||
@@ -45,12 +51,17 @@ namespace PILO {
                 continue; // Not a node we want
             }
             std::string type_str = node.second[TYPE_KEY].as<std::string>();
+
+            _vmap.emplace(std::make_pair(node_str, count));
+            _ivmap.emplace(std::make_pair(count, node_str));
+            count++;
+
             if (type_str == SWITCH_TYPE) {
                 auto sw = std::make_shared<Switch>(_context, node_str);
                 nodeMap.emplace(std::make_pair(node_str, sw));
                 _switches.emplace(std::make_pair(node_str, sw));
             } else if (type_str == CONTROLLER_TYPE) {
-                auto c = std::make_shared<Controller>(_context, node_str);
+                auto c = std::make_shared<Controller>(_context, node_str, refresh);
                 std::cout << "Controller " << node_str << std::endl;
                 nodeMap.emplace(std::make_pair(node_str, c));
                 _controllers.emplace(std::make_pair(node_str, c));
@@ -60,6 +71,7 @@ namespace PILO {
                 _others.emplace(std::make_pair(node_str, n));
             }
         }
+        igraph_add_vertices(&_graph, count, NULL);
         return nodeMap;
     }
 
@@ -77,34 +89,75 @@ namespace PILO {
         return linkMap;
     }
 
+    void Simulation::add_graph_link(const std::shared_ptr<PILO::Link>& link) {
+        uint32_t e0 = _vmap.at(link->_a->_name);
+        uint32_t e1 = _vmap.at(link->_b->_name);
+        igraph_add_edge(&_graph, e0, e1);
+    }
+
+    void Simulation::remove_graph_link(const std::shared_ptr<PILO::Link>& link) {
+        uint32_t e0 = _vmap.at(link->_a->_name);
+        uint32_t e1 = _vmap.at(link->_b->_name);
+        igraph_integer_t eid;
+        igraph_get_eid(&_graph, &eid, e0, e1, IGRAPH_UNDIRECTED, 0);
+        if (eid != -1) {
+            igraph_delete_edges(&_graph, igraph_ess_1(eid));
+        }
+
+    }
+
     void Simulation::set_all_links_up() {
         for (auto link : _links) {
             link.second->set_up();
+            add_graph_link(link.second);
         }
     }
 
     void Simulation::set_all_links_down() {
         for (auto link : _links) {
             link.second->set_down();
+            remove_graph_link(link.second);
         }
     }
 
     void Simulation::set_all_links_up_silent() {
         for (auto link : _links) {
             link.second->silent_set_up();
+            add_graph_link(link.second);
             for (auto controller : _controllers) {
-                controller.second->add_link(link.first);
+                controller.second->add_link(link.first, link.second->version());
             }
         }
     }
 
     void Simulation::set_all_links_down_silent() {
         for (auto link : _links) {
+            
             link.second->silent_set_down();
+            remove_graph_link(link.second);
+
             for (auto controller : _controllers) {
-                controller.second->remove_link(link.first);
+                controller.second->remove_link(link.first, link.second->version());
             }
         }
+    }
+
+    void Simulation::set_link_up(const std::string& link) {
+        set_link_up(_links.at(link));
+    }
+
+    void Simulation::set_link_up(const std::shared_ptr<Link>& link) {
+        link->set_up();
+        add_graph_link(link);
+    }
+
+    void Simulation::set_link_down(const std::string& link) {
+        set_link_down(_links.at(link));
+    }
+
+    void Simulation::set_link_down(const std::shared_ptr<Link>& link) {
+        link->set_down();
+        remove_graph_link(link);
     }
 
     void Simulation::compute_all_paths() {
@@ -125,14 +178,31 @@ namespace PILO {
         }
     }
 
-    double Simulation::check_routes() {
+    double Simulation::check_routes() const {
         uint64_t checked = 0;
         uint64_t passed = 0;
+        std::cout << _context.get_time() << 
+            "  Checking \t\t" << " edge count for graph is " << igraph_ecount(&_graph) << std::endl;
+        igraph_matrix_t distances;
+        igraph_matrix_init(&distances, 1, 1);
+        igraph_shortest_paths(&_graph, &distances, igraph_vss_all(), igraph_vss_all(), IGRAPH_ALL);
+
         for (auto h1 : _others) {
             for (auto h2 : _others) {
+#if 0
+                std::cout << "Going to check" << std::endl;
+                std::cout << "\t" << h1.first << "   " << h2.first << "    ";
+#endif
                 if (h1.first == h2.first) {
+                    //std::cout << "skip (same)" << std::endl;
                     continue;
                 }
+                // Skip if the underlying topology is disconnected
+                if (MATRIX(distances, _vmap.at(h1.first), _vmap.at(h2.first)) == IGRAPH_INFINITY) {
+                    //std::cout << "skip (!connected)" << std::endl;
+                    continue;
+                }
+
                 checked += 1;
                 std::string sig = Packet::generate_signature(h1.first, h2.first, Packet::DATA);
                 for (auto begin_link : h1.second->_links) {
@@ -163,7 +233,36 @@ namespace PILO {
                 }
             }
         }
-        std::cout << "Checked " << checked << "    passed   " << passed << std::endl;
+        std::cout << "\tChecked " << checked << "    passed   " << passed << std::endl;
+        igraph_matrix_destroy(&distances);
+
         return ((double)passed)/((double)checked);
+    }
+
+    void Simulation::dump_bw_used() const {
+        size_t total_data = 0;
+        std::unordered_map<int, size_t> data_by_type;
+        
+        for (int i = 0; i < Packet::END; i++) {
+            data_by_type.emplace(std::make_pair(i, 0));
+        }
+
+        for (auto link : _links) {
+            total_data += link.second->_totalBits;
+            for (auto bw : link.second->_bitByType) {
+                data_by_type[bw.first] += bw.second;
+            }
+        }
+
+        BPS overall_bw = ((BPS)total_data) / _context.now();
+        BPS bw_per_link = overall_bw / _links.size();
+        std::cout << _context.now() << " bw  total " << overall_bw << " link " << bw_per_link << std::endl;
+        std::cout << "\t By type:" << std::endl;
+        for (auto per_type : data_by_type) {
+            BPS overall = ((per_type.second) / _context.now());
+            BPS per_link = overall / _links.size();
+            std::cout << "\t\t " << Packet::IType[per_type.first] << " bw total " 
+                << overall << " link " << per_link << std::endl;
+        }
     }
 }

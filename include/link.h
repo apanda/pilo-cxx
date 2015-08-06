@@ -1,4 +1,5 @@
 #include <memory>
+#include <unordered_map>
 #include "context.h"
 #include "distributions.h"
 #ifndef __LINK_H__
@@ -28,16 +29,22 @@ namespace PILO {
 
             void send(Node* sender, std::shared_ptr<Packet> packet);
             
-            inline bool is_up() { return _state == UP; }
+            inline bool is_up() const { return _state == UP; }
 
-            inline std::shared_ptr<Node> get_other(std::shared_ptr<Node> n) { return (n.get() == _a.get() ? _b : _a); }
+            inline std::shared_ptr<Node> get_other(std::shared_ptr<Node> n) const  { 
+                return (n.get() == _a.get() ? _b : _a); }
 
-            inline const std::string& name() {
+            inline const std::string& name() const {
                 return _name;
+            }
+
+            inline uint64_t version() const {
+                return _version;
             }
 
             std::shared_ptr<Node> _a;
             std::shared_ptr<Node> _b;
+
         private:
 
             void set_up();
@@ -48,8 +55,11 @@ namespace PILO {
 
             void silent_set_down();
 
+            uint64_t _version;
             Time _nextSchedulable;
             State _state;
+            size_t _totalBits;
+            std::unordered_map<int32_t, size_t> _bitByType;
     };
 }
 #endif

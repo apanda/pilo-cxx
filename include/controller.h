@@ -14,9 +14,10 @@ namespace PILO {
         friend class Simulation;
         public:
             Controller(Context& context,
-                 const std::string& name);
+                 const std::string& name,
+                 const Time referesh);
             
-            virtual void receive(std::shared_ptr<Packet> packet); 
+            virtual void receive(std::shared_ptr<Packet> packet, Link* link); 
 
             virtual void notify_link_existence(Link* link);
             
@@ -39,8 +40,8 @@ namespace PILO {
             void add_switches(switch_map switches);
             void add_nodes(node_map nodes);
             
-            void add_link(const std::string& link);
-            void remove_link(const std::string& link);
+            bool add_link(const std::string& link, uint64_t version);
+            bool remove_link(const std::string& link, uint64_t version);
 
             flowtable_db compute_paths ();
 
@@ -48,16 +49,27 @@ namespace PILO {
                 igraph_destroy(&_graph);
             }
 
+        protected:
+            virtual void handle_link_up(const std::shared_ptr<Packet>& packet);
+            virtual void handle_link_down(const std::shared_ptr<Packet>& packet);
+            virtual void handle_switch_information(const std::shared_ptr<Packet>& packet);
+            void apply_patch(flowtable_db& diff);
+            void send_switch_info_request();
+
         private:
             std::unordered_set<std::string> _controllers;
             std::unordered_set<std::string> _switches;
             std::unordered_set<std::string> _nodes;
             std::unordered_set<std::string> _links;
+            std::unordered_map<std::string, uint64_t> _linkVersion;
             vertex_map _vertices;
             inv_vertex_map _ivertices;
             igraph_t _graph;
             igraph_integer_t _usedVertices;
             flowtable_db _flowDb;
+            std::unordered_set<uint64_t> _filter;
+            std::unordered_set<std::string> _existingLinks;
+            Time _refresh;
     };
 }
 #endif

@@ -17,10 +17,16 @@ namespace PILO {
         _bandwidth(bandwidth),
         _a(std::move(a)),
         _b(std::move(b)),
+        _version(0),
         _nextSchedulable(0),
-        _state (DOWN) {
+        _state (DOWN),
+        _totalBits(0),
+        _bitByType() {
             _a->notify_link_existence(this);
             _b->notify_link_existence(this);
+            for (int i = 0; i < Packet::END; i++) {
+                _bitByType.emplace(std::make_pair(i, 0));
+            }
     }
 
     void Link::send(Node* sender, std::shared_ptr<Packet> packet) {
@@ -36,13 +42,17 @@ namespace PILO {
         if (_a.get() == sender) {
             _context.scheduleAbsolute(end_time, [this, packet] (float) mutable {
                     if (_state == UP) {
-                        this->_b->receive(std::move(packet));
+                        this->_totalBits += packet->_size;
+                        this->_bitByType[packet->_type] += packet->_size;
+                        this->_b->receive(std::move(packet), this);
                     }
             });
         } else if (_b.get() == sender) {
             _context.scheduleAbsolute(end_time, [this, packet] (float) mutable {
                     if (_state == UP) {
-                        this->_a->receive(std::move(packet));
+                        this->_totalBits += packet->_size;
+                        this->_bitByType[packet->_type] += packet->_size;
+                        this->_a->receive(std::move(packet), this);
                     }
             });
         }
@@ -50,24 +60,28 @@ namespace PILO {
 
     void Link::set_up() {
         _state = UP;
+        _version++;
         _a->notify_link_up(this);
         _b->notify_link_up(this);
     }
 
     void Link::set_down() {
         _state = DOWN;
+        _version++;
         _a->notify_link_down(this);
         _b->notify_link_down(this);
     }
 
     void Link::silent_set_up() {
         _state = UP;
+        _version++;
         _a->silent_link_up(this);
         _b->silent_link_up(this);
     }
 
     void Link::silent_set_down() {
         _state = DOWN;
+        _version++;
         _a->silent_link_down(this);
         _b->silent_link_down(this);
     }

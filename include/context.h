@@ -10,10 +10,10 @@ namespace PILO {
     typedef double BPS;
     class Context {
         public:
-            Context();
+            Context(Time endTime);
             bool next();
-            Time get_time();
-            inline Time now() { return _time; }
+            Time get_time() const;
+            inline Time now() const { return _time; }
             void set_time(Time time);
             void schedule(Time delta, std::function<void(Time)> task);
             void scheduleAbsolute(Time time, std::function<void(Time)> task);
@@ -32,6 +32,7 @@ namespace PILO {
                 Queue;
             Queue _queue;
             Time _time;
+            Time _end;
     };
 }
 #endif

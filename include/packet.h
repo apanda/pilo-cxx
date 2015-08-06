@@ -15,18 +15,21 @@ namespace PILO {
                 DATA = 0,
                 CONTROL = 1, // Below this everything is control
                 NOP = 1,
-                ECHO,
-                LINK_UP,
-                LINK_DOWN,
-                CHANGE_RULES,
-                SWITCH_INFORMATION,
-                SWITCH_INFORMATION_REQ
+                ECHO = 2,
+                LINK_UP = 3,
+                LINK_DOWN = 4,
+                CHANGE_RULES = 5,
+                SWITCH_INFORMATION = 6,
+                SWITCH_INFORMATION_REQ=7,
+                END
             };
+
+            static const std::string IType[];
 
             enum {
                 HEADER = 14 * 8,
-                LINK_UP_SIZE = HEADER + 64, // Header + 64 bit link ID
-                LINK_DOWN_SIZE = HEADER + 64 // Header + 64 bit link ID
+                LINK_UP_SIZE = HEADER + 64 + 64, // Header + 64 bit link ID + 64 bit version
+                LINK_DOWN_SIZE = HEADER + 64 + 64// Header + 64 bit link ID + 64 bit version
             };
 
             std::string _source;
@@ -39,8 +42,10 @@ namespace PILO {
             // All the data we would ever possibly need, since I am lazy
             struct {
                 std::string link;
+                uint64_t version;
                 flowtable table;
                 std::unordered_map<std::string, Link::State> linkState;
+                std::unordered_map<std::string, uint64_t> linkVersion;
             } data;
             // Let us revisit this at some point
             //void* data;
@@ -53,11 +58,15 @@ namespace PILO {
                     _sig =  generate_signature(_source, _destination, _type);
                     _id = pid;
                     pid++;
+#if 0
                     std::cout << "packet_obj " << _id << " created " << std::endl;
+#endif
             }
 
             virtual ~Packet() {
+#if 0
                 std::cout << "packet_obj " << _id << " destroyed " << std::endl;
+#endif
             }
 
             static std::string generate_signature(const std::string& src, const std::string& dest, Type type) {
