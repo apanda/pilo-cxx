@@ -77,6 +77,11 @@ int main(int argc, char* argv[]) {
 
     simulation.run();
     std::cout << "Fin." << std::endl;
+    std::cout << "Convergence " << std::endl;
+    for (PILO::Time time = measure; time <= endTime; time+=measure) {
+        std::cout << " !  " << time << " " << converged.at(time) << std::endl;
+    }
+    //std::cout << "! " << 
     simulation.dump_bw_used();
     return 1;
 }

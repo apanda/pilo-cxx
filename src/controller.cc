@@ -265,6 +265,7 @@ namespace PILO {
     }
 
     void Controller::send_switch_info_request() {
+        std::cout << _context.get_time() << " " << _name << " switch info request starting " << std::endl;
         auto req = Packet::make_packet(_name, Packet::SWITCH_INFORMATION_REQ, Packet::HEADER);
         flood(req);
         _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
