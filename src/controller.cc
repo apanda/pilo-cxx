@@ -408,7 +408,7 @@ namespace PILO {
             }
 
             // See if we can fill any gaps
-            for (int idx = 0; idx < packet->data.gaps.at(link).size(); idx+=2) {
+            for (size_t idx = 0; idx < packet->data.gaps.at(link).size(); idx+=2) {
                 uint64_t begin = packet->data.gaps.at(link).at(idx);
                 uint64_t end = std::min(packet->data.gaps.at(link).at(idx + 1), _max.at(link));
                 for (uint64_t i = begin; i < end; i++) {
