@@ -5,12 +5,15 @@
 #include <unordered_set>
 #include <vector>
 #include <memory>
-#include <igraph/igraph.h> // Graph processing
+#include <igraph/igraph.h> // Graph processing (for the masses).
 #ifndef __CONTROLLER_H__
 #define __CONTROLLER_H__
-// Equivalent to LSController in Python
+
 namespace PILO {
     class Switch;
+
+    // A class to keep logs. Currently this is very inefficient in terms of memory, however
+    // the memory inefficiency is lower than my laziness.
     class Log  {
         public:
             // Can optimize these if needed.
@@ -20,14 +23,22 @@ namespace PILO {
             typedef std::unordered_map<std::string, size_t> LogSizes;
 
             Log();
+
+            // Tell the log that a link exists
             void open_log_link(const std::string& link);
+
+            // Add a link event
             void add_link_event(const std::string& link, uint64_t version, Link::State state);
-            void compute_gaps(const std::shared_ptr<Packet>& packet); 
+
+            // Record what things we might be missing.
+            void compute_gaps(const std::shared_ptr<Packet>& packet);
+
+            // Given a gossip packet, compute the response.
             std::vector<Packet::GossipLog> compute_response(const std::shared_ptr<Packet>& packet);
+
+            // Given a gossip response, merge things together.
             void merge_logs(const std::shared_ptr<Packet>& packet);
-            const size_t INITIAL_SIZE = 1024;
-            const size_t HWM = 8192;
-            const size_t GROW = 128;
+
         private:
             std::vector<uint64_t> compute_link_gap(const std::string& link, size_t&);
             LinkLog _log;
@@ -35,20 +46,28 @@ namespace PILO {
             LogMarked _marked;
             LogSizes _sizes;
             LogMarked _max;
-            
+
+            const size_t INITIAL_SIZE = 1024;
+            const size_t HWM = 8192;
+            const size_t GROW = 128;
+
     };
+
+    // Equivalent to LSController in Python
     class Controller : public Node {
+        // The simulation is our friend
         friend class Simulation;
+
         public:
             Controller(Context& context,
                  const std::string& name,
                  const Time referesh,
                  const Time gossip);
-            
-            virtual void receive(std::shared_ptr<Packet> packet, Link* link); 
+
+            virtual void receive(std::shared_ptr<Packet> packet, Link* link);
 
             virtual void notify_link_existence(Link* link);
-            
+
             virtual void notify_link_up(Link*);
 
             virtual void notify_link_down(Link*);
@@ -64,27 +83,37 @@ namespace PILO {
             typedef std::unordered_map<igraph_integer_t, std::string> inv_vertex_map;
             typedef std::unordered_map<std::string, Packet::flowtable> flowtable_db;
 
-            void add_controllers(controller_map controllers);
-            void add_switches(switch_map switches);
-            void add_nodes(node_map nodes);
-            
-            bool add_link(const std::string& link, uint64_t version);
-            bool remove_link(const std::string& link, uint64_t version);
-
-            flowtable_db compute_paths ();
-
+            // igraph is not C++, and allocates memory. So be nice and remove things.
             virtual ~Controller() {
                 igraph_destroy(&_graph);
             }
 
         protected:
+            // Some calls that can be used by the simulation to set up the controller.
+            void add_controllers(controller_map controllers);
+            void add_switches(switch_map switches);
+            void add_nodes(node_map nodes);
+
+            bool add_link(const std::string& link, uint64_t version);
+            bool remove_link(const std::string& link, uint64_t version);
+
+            // Compute paths, return a diff of what needs to be fixed.
+            flowtable_db compute_paths ();
+
+            // Respond to various control messages.
             virtual void handle_link_up(const std::shared_ptr<Packet>& packet);
             virtual void handle_link_down(const std::shared_ptr<Packet>& packet);
             virtual void handle_switch_information(const std::shared_ptr<Packet>& packet);
             virtual void handle_gossip(const std::shared_ptr<Packet>& packet);
             virtual void handle_gossip_rep(const std::shared_ptr<Packet>& packet);
+
+            // Given a diff, packetize things and send rule updates to switches.
             void apply_patch(flowtable_db& diff);
+
+            // Periodically query switches for information.
             void send_switch_info_request();
+
+            // Periodically gossip with controllers
             void send_gossip_request();
 
         private:

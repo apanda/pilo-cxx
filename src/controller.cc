@@ -2,13 +2,14 @@
 #include "packet.h"
 #include <boost/algorithm/string.hpp>
 #include <algorithm>
+// I know these are unnecessary here, but I was having some fun.
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 namespace PILO {
     Controller::Controller(Context& context, const std::string& name, const Time refresh, const Time gossip):
         Node(context, name),
         _controllers(),
-        _switches(), 
+        _switches(),
         _nodes(),
         _vertices(),
         _filter(),
@@ -23,6 +24,7 @@ namespace PILO {
     }
 
     void Controller::receive(std::shared_ptr<Packet> packet, Link* link) {
+        // Make sure we have not already received this packet.
         if (_filter.find(packet->_id) != _filter.end()) {
             return;
         }
@@ -95,7 +97,7 @@ namespace PILO {
         auto response = _log.compute_response(packet);
         if (response.size() > 0) {
             //std::cout << _context.now() << " " << _name << " sending gossip response " << std::endl;
-            auto rpacket = Packet::make_packet(_name, packet->_source, Packet::GOSSIP_REP, 
+            auto rpacket = Packet::make_packet(_name, packet->_source, Packet::GOSSIP_REP,
                                                 Packet::HEADER + response.size() * (64 + 64 + 8));
             rpacket->data.gossipResponse = std::move(response);
             flood(rpacket);
@@ -124,7 +126,7 @@ namespace PILO {
     void Controller::notify_link_existence(Link* link) {
         Node::notify_link_existence(link);
     }
-    
+
     void Controller::notify_link_up(Link* link) {
         Node::notify_link_up(link);
     }
@@ -142,6 +144,8 @@ namespace PILO {
     }
 
     bool Controller::add_link(const std::string& link, uint64_t version) {
+
+        // This is mostly to prevent adding a single link many times.
         if (_links.find(link) == _links.end()) {
             _links.emplace(link);
             _linkVersion.emplace(std::make_pair(link, version));
@@ -153,10 +157,12 @@ namespace PILO {
                 return false;
             }
         }
+
+        // Update the version.
         _linkVersion[link] = version;
         _log.add_link_event(link, version, Link::UP);
         if (_existingLinks.find(link) != _existingLinks.end()) {
-            return false; 
+            return false;
         }
         std::vector<std::string> parts;
         _existingLinks.emplace(link);
@@ -277,7 +283,7 @@ namespace PILO {
                             } else {
                             }
                         }
-                    } 
+                    }
 #if 0
                     else {
                         std::cout << "Cannot find path between " << v0 << "   " << v1 << std::endl;
@@ -301,7 +307,7 @@ namespace PILO {
         flood(std::move(req));
         _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
     }
-    
+
     void Controller::send_gossip_request() {
         auto req = Packet::make_packet(_name, Packet::GOSSIP, Packet::HEADER);
         _log.compute_gaps(req);
@@ -318,12 +324,12 @@ namespace PILO {
     }
 
     void Log::open_log_link(const std::string& link) {
-        _log.emplace(std::make_pair(link, std::vector<Link::State>(INITIAL_SIZE))); 
-        _commit.emplace(std::make_pair(link, std::vector<bool>(INITIAL_SIZE))); 
+        _log.emplace(std::make_pair(link, std::vector<Link::State>(INITIAL_SIZE)));
+        _commit.emplace(std::make_pair(link, std::vector<bool>(INITIAL_SIZE)));
         // Nothing has been marked yet
         _max.emplace(std::make_pair(link, 0));
-        _marked.emplace(std::make_pair(link, 1)); 
-        _sizes.emplace(std::make_pair(link, INITIAL_SIZE)); 
+        _marked.emplace(std::make_pair(link, 1));
+        _sizes.emplace(std::make_pair(link, INITIAL_SIZE));
 
         _log.at(link).emplace(_log[link].begin(), Link::DOWN);
         _commit.at(link).emplace(_commit[link].begin(), true);
@@ -351,20 +357,20 @@ namespace PILO {
             _max[link] = version;
         }
     }
-    
+
     void Log::compute_gaps(const std::shared_ptr<Packet>& packet) {
         size_t packet_size = 0;
         for (auto l : _max) {
-            packet_size += (64 + 64); // 64 bit for link ID, 64 bit for version 
+            packet_size += (64 + 64); // 64 bit for link ID, 64 bit for version
             packet->data.logMax.emplace(l.first, l.second);
             size_t gap_size;
             packet->data.gaps.emplace(l.first, std::move(compute_link_gap(l.first, gap_size)));
             packet_size += (gap_size * 2 * 64); // 64 bit for each side of the gap
         }
-        packet->_size += packet_size; 
+        packet->_size += packet_size;
 
     }
-    
+
     std::vector<uint64_t> Log::compute_link_gap(const std::string& link, size_t& gaps_found) {
         std::vector<uint64_t> gaps;
         uint64_t i = _marked.at(link);
@@ -390,7 +396,7 @@ namespace PILO {
         }
         return gaps;
     }
-    
+
     std::vector<Packet::GossipLog> Log::compute_response(const std::shared_ptr<Packet>& packet) {
         assert(packet->_type == Packet::GOSSIP);
         std::vector<Packet::GossipLog> log;
@@ -400,7 +406,7 @@ namespace PILO {
             if (lv.second < _max.at(link)) {
                 for (uint64_t i = lv.second; i <= _max.at(link); i++) {
                     if (_commit.at(link).at(i)) {
-                        log.emplace_back(Packet::GossipLog{.link=lv.first, 
+                        log.emplace_back(Packet::GossipLog{.link=lv.first,
                                                            .state=_log.at(link).at(i),
                                                            .version=i});
                     }
@@ -413,7 +419,7 @@ namespace PILO {
                 uint64_t end = std::min(packet->data.gaps.at(link).at(idx + 1), _max.at(link));
                 for (uint64_t i = begin; i < end; i++) {
                     if (_commit.at(link).at(i)) {
-                        log.emplace_back(Packet::GossipLog{.link=lv.first, 
+                        log.emplace_back(Packet::GossipLog{.link=lv.first,
                                                            .state=_log.at(link).at(i),
                                                            .version=i});
                     }
@@ -432,7 +438,7 @@ namespace PILO {
                 if (_max.at(log.link) < log.version) {
                     _max[log.link] = log.version;
                 }
-            } 
+            }
         }
     }
 }

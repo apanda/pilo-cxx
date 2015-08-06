@@ -7,11 +7,19 @@
 #define __PACKET_H__
 namespace PILO {
     class Node;
+
+    // Packets.
     class Packet {
         public:
             typedef std::unordered_map<std::string, std::string> flowtable;
+
+            // This packet is for all.
             static const std::string WILDCARD;
+
+            // Record packet ID.
             static uint64_t pid;
+
+            // Packet type.
             enum Type {
                 DATA = 0,
                 CONTROL = 1, // Below this everything is control
@@ -27,6 +35,8 @@ namespace PILO {
                 END
             };
 
+
+            // Pretty print support
             static const std::string IType[];
 
             enum {
@@ -42,12 +52,13 @@ namespace PILO {
             size_t _size;
             uint64_t _id;
 
+            // What to send in gossip responses.
             struct GossipLog {
                 std::string link;
                 Link::State state;
                 uint64_t version;
             };
-            
+
             // All the data we would ever possibly need, since I am lazy
             struct {
                 std::string link;
@@ -59,8 +70,6 @@ namespace PILO {
                 std::unordered_map<std::string, uint64_t> logMax;
                 std::vector<GossipLog> gossipResponse;
             } data;
-            // Let us revisit this at some point
-            //void* data;
 
             Packet(std::string source, std::string destination, Type type, size_t size) :
                 _source(source),

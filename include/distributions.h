@@ -5,9 +5,10 @@
 #include <boost/random/uniform_int.hpp>
 #ifndef __DISTRIBUTIONS_H__
 #define __DISTRIBUTIONS_H__
+// Random distributions of various kinds.
 namespace {
-     static const std::string DISTRO      = "distro";  
-     static const std::string NORMAL      = "normal";  
+     static const std::string DISTRO      = "distro";
+     static const std::string NORMAL      = "normal";
      static const std::string CONSTANT    = "constant";
      static const std::string EXPONENTIAL = "exponential";
      static const std::string MEAN_KEY    = "mean";
@@ -16,13 +17,17 @@ namespace {
      static const PILO::Time  CONV_FACTOR = 1000.0; // Conversion from Python to s.
 }
 namespace PILO {
+
     template <typename T> class ConstantDistribution;
     template <typename T> class NormalDistribution;
     template <typename T> class ExponentialDistribution;
     template <typename T>
     class Distribution {
         public:
+            // Get the next value from this distribution.
             virtual T next() = 0;
+
+            // Convert a YAML node into a distribution.
             static Distribution<T>* get_distribution(const YAML::Node& node, boost::mt19937& rng) {
                 if (node[DISTRO].as<std::string>() == NORMAL) {
                     return new NormalDistribution<T>(node, rng);
@@ -56,7 +61,7 @@ namespace PILO {
     class NormalDistribution : public Distribution<T> {
         private:
             boost::normal_distribution<T> _distro;
-            boost::variate_generator<boost::mt19937&, 
+            boost::variate_generator<boost::mt19937&,
                                            boost::normal_distribution<T>> _var;
         public:
             NormalDistribution(const YAML::Node& node, boost::mt19937& rng) :
@@ -74,7 +79,7 @@ namespace PILO {
     class ExponentialDistribution : public Distribution<T> {
         private:
             boost::exponential_distribution<T> _distro;
-            boost::variate_generator<boost::mt19937&, 
+            boost::variate_generator<boost::mt19937&,
                                            boost::exponential_distribution<T>> _var;
         public:
             ExponentialDistribution(const YAML::Node& node, boost::mt19937& rng) :

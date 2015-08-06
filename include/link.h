@@ -27,11 +27,12 @@ namespace PILO {
                  std::shared_ptr<Node> a, // Endpoint
                  std::shared_ptr<Node> b);
 
+            // Send a packet.
             void send(Node* sender, std::shared_ptr<Packet> packet);
-            
+
             inline bool is_up() const { return _state == UP; }
 
-            inline std::shared_ptr<Node> get_other(std::shared_ptr<Node> n) const  { 
+            inline std::shared_ptr<Node> get_other(std::shared_ptr<Node> n) const  {
                 return (n.get() == _a.get() ? _b : _a); }
 
             inline const std::string& name() const {
@@ -51,6 +52,8 @@ namespace PILO {
 
             void set_down();
 
+            // Silently set links up and down. This is mostly used by the simulation to set
+            // things up.
             void silent_set_up();
 
             void silent_set_down();

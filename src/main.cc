@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
     PILO::Time mttr;
     PILO::Time gossip;
     std::unordered_map<PILO::Time, double> converged;
-    
+
     // Argument parsing
     po::options_description args("PILO simulation");
     args.add_options()
@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
     for (PILO::Time time = measure; time <= endTime; time+=measure) {
         std::cout << " !  " << time << " " << converged.at(time) << std::endl;
     }
-    //std::cout << "! " << 
+
     simulation.dump_bw_used();
     return 1;
 }

@@ -25,7 +25,7 @@ namespace PILO {
         task(_time);
         return (!_queue.empty() && _time <= _end);
     }
-    
+
     void Context::schedule(Time delta, std::function<void(Time)> task) {
         _queue.emplace(std::make_tuple(_time + delta, task));
     }

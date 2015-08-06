@@ -18,20 +18,23 @@
 #ifndef __SIMULATION_H__
 #define __SIMULATION_H__
 namespace PILO {
+
+    // The simulation itself. Where all the sausage is made.
     class Simulation {
         public:
-            Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology, 
-                    const Time endTime, const Time refresh, const Time gossip, const BPS bw); 
-            
+            Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology,
+                    const Time endTime, const Time refresh, const Time gossip, const BPS bw);
+
+            // Run to completion
             inline void run() {
                 while(_context.next());
             }
-            
+
             // Return a random link
             inline std::shared_ptr<PILO::Link> random_link() {
                 return std::next(std::begin(_links), _linkRng.next())->second;
             }
-            
+
             // Return a random node
             inline std::shared_ptr<Node> random_node() {
                 auto count =  _nodeRng.next();
@@ -60,7 +63,7 @@ namespace PILO {
 
             void set_link_down(const std::string&);
             void set_link_down(const std::shared_ptr<Link>&);
-            
+
             void compute_all_paths();
 
             void install_all_routes();
@@ -89,7 +92,7 @@ namespace PILO {
             node_map populate_nodes(const Time refresh, const Time gossip);
 
             link_map populate_links(BPS bw);
-            
+
             uint32_t _seed;
             boost::mt19937 _rng;
 
@@ -98,7 +101,7 @@ namespace PILO {
             const YAML::Node _configuration;
             const YAML::Node _topology;
 
-            Distribution<PILO::Time> *_latency; 
+            Distribution<PILO::Time> *_latency;
             Controller::vertex_map _vmap;
             Controller::inv_vertex_map _ivmap;
             switch_map _switches;

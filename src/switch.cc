@@ -4,7 +4,7 @@ namespace PILO {
     Switch::Switch(Context& context, const std::string& name):
         Node(context, name),
         _linkState(),
-        _filter(), 
+        _filter(),
         _forwardingTable(){
     }
 
@@ -38,12 +38,12 @@ namespace PILO {
                     install_flow_table(packet->data.table);
                     break;
                 case Packet::SWITCH_INFORMATION_REQ: {
-                        auto response = Packet::make_packet(_name, packet->_source, 
-                                Packet::SWITCH_INFORMATION, 
+                        auto response = Packet::make_packet(_name, packet->_source,
+                                Packet::SWITCH_INFORMATION,
                                 Packet::HEADER + (64 + 64 + 8) * _linkState.size());
                         for (auto link : _linkState) {
                             response->data.linkState[link.first] = link.second;
-                            response->data.linkVersion[link.first] = _links.at(link.first)->version(); 
+                            response->data.linkVersion[link.first] = _links.at(link.first)->version();
                         }
                         flood(response);
                     }
@@ -73,7 +73,7 @@ namespace PILO {
         Node::notify_link_existence(link);
         _linkState.emplace(std::make_pair(link->name(), Link::DOWN));
     }
-    
+
     void Switch::notify_link_up(Link* link) {
         Node::notify_link_up(link);
         if (_linkState.at(link->name()) == Link::DOWN) {

@@ -10,8 +10,9 @@ namespace {
     const std::string CONTROLLER_TYPE = "LSGossipControl";
     const std::string SWITCH_TYPE = "LinkStateSwitch";
 }
-namespace PILO {    
-    Simulation::Simulation(const uint32_t seed, const std::string& configuration, 
+
+namespace PILO {
+    Simulation::Simulation(const uint32_t seed, const std::string& configuration,
             const std::string& topology, const Time endTime, const Time refresh, const Time gossip, const BPS bw) :
         _context(endTime),
         _seed(seed),
@@ -28,7 +29,7 @@ namespace PILO {
         _links(std::move(populate_links(bw))),
         _linkRng(0, _links.size() - 1, _rng),
         _nodeRng(0, _nodes.size() - 1, _rng) {
-        
+
         // Populate controller information
         for (auto controller : _controllers) {
             auto cobj = controller.second;
@@ -46,7 +47,7 @@ namespace PILO {
             std::string node_str = node.first.as<std::string>();
             if (node_str == LINKS_KEY ||
                 node_str == FAIL_KEY ||
-                node_str == RUNFILE_KEY || 
+                node_str == RUNFILE_KEY ||
                 node_str == CRIT_KEY) {
                 continue; // Not a node we want
             }
@@ -82,8 +83,8 @@ namespace PILO {
             std::string link_str = link.as<std::string>();
             std::vector<std::string> parts;
             boost::split(parts, link_str, boost::is_any_of("-"));
-            linkMap.emplace(std::make_pair(link_str, 
-                        std::make_shared<Link>(_context, link_str, 
+            linkMap.emplace(std::make_pair(link_str,
+                        std::make_shared<Link>(_context, link_str,
                             _latency, bw, _nodes.at(parts[0]), _nodes.at(parts[1]))));
         }
         return linkMap;
@@ -132,7 +133,7 @@ namespace PILO {
 
     void Simulation::set_all_links_down_silent() {
         for (auto link : _links) {
-            
+
             link.second->silent_set_down();
             remove_graph_link(link.second);
 
@@ -171,7 +172,7 @@ namespace PILO {
         for (auto c : _controllers) {
             diffs = std::move(c.second->compute_paths());
         }
-        
+
         for (auto diff : diffs) {
             auto sw = _switches.at(diff.first);
             sw->install_flow_table(diff.second);
@@ -181,7 +182,7 @@ namespace PILO {
     double Simulation::check_routes() const {
         uint64_t checked = 0;
         uint64_t passed = 0;
-        //std::cout << _context.get_time() << 
+        //std::cout << _context.get_time() <<
             //"  Checking \t\t" << " edge count for graph is " << igraph_ecount(&_graph) << std::endl;
         igraph_matrix_t distances;
         igraph_matrix_init(&distances, 1, 1);
@@ -229,7 +230,7 @@ namespace PILO {
                     if (current.get() == h2.second.get()) {
                         passed++;
                         break;
-                    } 
+                    }
                 }
             }
         }
@@ -242,7 +243,7 @@ namespace PILO {
     void Simulation::dump_bw_used() const {
         size_t total_data = 0;
         std::unordered_map<int, size_t> data_by_type;
-        
+
         for (int i = 0; i < Packet::END; i++) {
             data_by_type.emplace(std::make_pair(i, 0));
         }
@@ -256,13 +257,13 @@ namespace PILO {
 
         BPS overall_bw = ((BPS)total_data) / _context.now();
         BPS bw_per_link = overall_bw / _links.size();
-        std::cout << _context.now() << " bw  total " << std::fixed << overall_bw << " link " 
+        std::cout << _context.now() << " bw  total " << std::fixed << overall_bw << " link "
             <<  std::fixed << bw_per_link << std::endl;
         std::cout << "\t By type:" << std::endl;
         for (auto per_type : data_by_type) {
             BPS overall = ((per_type.second) / _context.now());
             BPS per_link = overall / _links.size();
-            std::cout << "\t\t " << Packet::IType[per_type.first] << " bw total " 
+            std::cout << "\t\t " << Packet::IType[per_type.first] << " bw total "
                 << std::fixed << overall << " link " << std::fixed <<  per_link << std::endl;
         }
     }

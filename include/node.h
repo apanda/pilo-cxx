@@ -7,7 +7,7 @@
 #define __NODE_H__
 namespace PILO {
     class Link;
-    /// This is equivalent to bandwidth link in the Python version.
+    /// A base node, also an end host.
     class Node {
         friend class Simulation;
         protected:
@@ -15,11 +15,11 @@ namespace PILO {
         public:
             Node(Context& context,
                  const std::string& name);
-            
-            virtual void receive(std::shared_ptr<Packet> packet, Link* link); 
+
+            virtual void receive(std::shared_ptr<Packet> packet, Link* link);
 
             virtual void notify_link_existence(Link* link);
-            
+
             virtual void notify_link_up(Link* link) {
                 //std::cout << _context.get_time() << " Link up " << link->name() << std::endl;
             }
@@ -31,11 +31,11 @@ namespace PILO {
             virtual void silent_link_up(Link*) {}
 
             virtual void silent_link_down(Link*) {}
-            
+
             void flood(std::shared_ptr<Packet> packet);
 
             void flood(std::shared_ptr<Packet> packet, const std::string& l);
-            
+
             const std::string _name;
 
         protected:

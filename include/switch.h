@@ -11,11 +11,11 @@ namespace PILO {
         public:
             Switch(Context& context,
                  const std::string& name);
-            
-            virtual void receive(std::shared_ptr<Packet> packet, Link* link); 
+
+            virtual void receive(std::shared_ptr<Packet> packet, Link* link);
 
             virtual void notify_link_existence(Link* link);
-            
+
             virtual void notify_link_up(Link*);
 
             virtual void notify_link_down(Link*);
