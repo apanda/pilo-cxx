@@ -2,18 +2,20 @@
 #include "packet.h"
 #include <boost/algorithm/string.hpp>
 namespace PILO {
-    Controller::Controller(Context& context, const std::string& name, const Time refresh):
+    Controller::Controller(Context& context, const std::string& name, const Time refresh, const Time gossip):
         Node(context, name),
         _controllers(),
         _switches(), 
         _nodes(),
         _vertices(),
         _filter(),
-        _refresh(refresh) {
+        _refresh(refresh),
+        _gossip(gossip) {
         // Create an empty graph
         igraph_empty(&_graph, 0, IGRAPH_UNDIRECTED);
         _usedVertices = 0;
         _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
+        _context.schedule(_gossip, [&](double) {this->send_gossip_request();});
     }
 
     void Controller::receive(std::shared_ptr<Packet> packet, Link* link) {
@@ -34,6 +36,12 @@ namespace PILO {
                     break;
                 case Packet::SWITCH_INFORMATION:
                     handle_switch_information(packet);
+                    break;
+                case Packet::GOSSIP:
+                    handle_gossip(packet);
+                    break;
+                case Packet::GOSSIP_REP:
+                    handle_gossip_rep(packet);
                     break;
                 default:
                     break;
@@ -79,6 +87,14 @@ namespace PILO {
         }
     }
 
+    void Controller::handle_gossip(const std::shared_ptr<Packet>& packet) {
+        //std::cout << _context.get_time() << " " << _name << " handle_gossip" << std::endl;
+    }
+
+    void Controller::handle_gossip_rep(const std::shared_ptr<Packet>& packet) {
+        //std::cout << _context.get_time() << " " << _name << " handle_gossip_rep" << std::endl;
+    }
+
     void Controller::apply_patch(flowtable_db& diff) {
         for (auto part : diff) {
             auto dest = part.first;
@@ -120,7 +136,7 @@ namespace PILO {
         } else {
             // We have already seen this link state update (or a newer one)
             if (version <= _linkVersion.at(link)) {
-                std::cout << _context.get_time() << "  " << _name << " rejected due to version " << std::endl;
+                //std::cout << _context.get_time() << "  " << _name << " rejected due to version " << std::endl;
                 return false;
             }
         }
@@ -137,7 +153,7 @@ namespace PILO {
 
     bool Controller::remove_link(const std::string& link, uint64_t version) {
         if (version <= _linkVersion.at(link)) {
-            std::cout << _context.get_time() << "  " << _name << " rejected due to version " << std::endl;
+            //std::cout << _context.get_time() << "  " << _name << " rejected due to version " << std::endl;
             return false;
         }
 
@@ -265,9 +281,16 @@ namespace PILO {
     }
 
     void Controller::send_switch_info_request() {
-        std::cout << _context.get_time() << " " << _name << " switch info request starting " << std::endl;
+        //std::cout << _context.get_time() << " " << _name << " switch info request starting " << std::endl;
         auto req = Packet::make_packet(_name, Packet::SWITCH_INFORMATION_REQ, Packet::HEADER);
         flood(req);
         _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
+    }
+    
+    void Controller::send_gossip_request() {
+        std::cout << _context.now() << " " << _name << " gossip" << std::endl;
+        auto req = Packet::make_packet(_name, Packet::GOSSIP, Packet::HEADER);
+        flood(req);
+        _context.schedule(_gossip, [&](double) {this->send_gossip_request();});
     }
 }

@@ -21,11 +21,11 @@ namespace PILO {
             virtual void notify_link_existence(Link* link);
             
             virtual void notify_link_up(Link* link) {
-                std::cout << _context.get_time() << " Link up " << link->name() << std::endl;
+                //std::cout << _context.get_time() << " Link up " << link->name() << std::endl;
             }
 
             virtual void notify_link_down(Link* link) {
-                std::cout << _context.get_time() << " Link down " << link->name() << std::endl;
+                //std::cout << _context.get_time() << " Link down " << link->name() << std::endl;
             }
 
             virtual void silent_link_up(Link*) {}

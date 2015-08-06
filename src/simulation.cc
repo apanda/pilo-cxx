@@ -12,7 +12,7 @@ namespace {
 }
 namespace PILO {    
     Simulation::Simulation(const uint32_t seed, const std::string& configuration, 
-            const std::string& topology, const Time endTime, const Time refresh, const BPS bw) :
+            const std::string& topology, const Time endTime, const Time refresh, const Time gossip, const BPS bw) :
         _context(endTime),
         _seed(seed),
         _rng(_seed),
@@ -24,7 +24,7 @@ namespace PILO {
         _switches(),
         _controllers(),
         _others(),
-        _nodes(std::move(populate_nodes(refresh))),
+        _nodes(std::move(populate_nodes(refresh, gossip))),
         _links(std::move(populate_links(bw))),
         _linkRng(0, _links.size() - 1, _rng),
         _nodeRng(0, _nodes.size() - 1, _rng) {
@@ -38,7 +38,7 @@ namespace PILO {
         }
     }
 
-    Simulation::node_map Simulation::populate_nodes(Time refresh) {
+    Simulation::node_map Simulation::populate_nodes(const Time refresh, const Time gossip) {
         igraph_empty(&_graph, 0, IGRAPH_UNDIRECTED);
         node_map nodeMap;
         igraph_integer_t count = 0;
@@ -61,7 +61,7 @@ namespace PILO {
                 nodeMap.emplace(std::make_pair(node_str, sw));
                 _switches.emplace(std::make_pair(node_str, sw));
             } else if (type_str == CONTROLLER_TYPE) {
-                auto c = std::make_shared<Controller>(_context, node_str, refresh);
+                auto c = std::make_shared<Controller>(_context, node_str, refresh, gossip);
                 std::cout << "Controller " << node_str << std::endl;
                 nodeMap.emplace(std::make_pair(node_str, c));
                 _controllers.emplace(std::make_pair(node_str, c));
@@ -181,8 +181,8 @@ namespace PILO {
     double Simulation::check_routes() const {
         uint64_t checked = 0;
         uint64_t passed = 0;
-        std::cout << _context.get_time() << 
-            "  Checking \t\t" << " edge count for graph is " << igraph_ecount(&_graph) << std::endl;
+        //std::cout << _context.get_time() << 
+            //"  Checking \t\t" << " edge count for graph is " << igraph_ecount(&_graph) << std::endl;
         igraph_matrix_t distances;
         igraph_matrix_init(&distances, 1, 1);
         igraph_shortest_paths(&_graph, &distances, igraph_vss_all(), igraph_vss_all(), IGRAPH_ALL);
@@ -233,7 +233,7 @@ namespace PILO {
                 }
             }
         }
-        std::cout << "\tChecked " << checked << "    passed   " << passed << std::endl;
+        //std::cout << "\tChecked " << checked << "    passed   " << passed << std::endl;
         igraph_matrix_destroy(&distances);
 
         return ((double)passed)/((double)checked);
@@ -256,13 +256,14 @@ namespace PILO {
 
         BPS overall_bw = ((BPS)total_data) / _context.now();
         BPS bw_per_link = overall_bw / _links.size();
-        std::cout << _context.now() << " bw  total " << overall_bw << " link " << bw_per_link << std::endl;
+        std::cout << _context.now() << " bw  total " << std::fixed << overall_bw << " link " 
+            <<  std::fixed << bw_per_link << std::endl;
         std::cout << "\t By type:" << std::endl;
         for (auto per_type : data_by_type) {
             BPS overall = ((per_type.second) / _context.now());
             BPS per_link = overall / _links.size();
             std::cout << "\t\t " << Packet::IType[per_type.first] << " bw total " 
-                << overall << " link " << per_link << std::endl;
+                << std::fixed << overall << " link " << std::fixed <<  per_link << std::endl;
         }
     }
 }

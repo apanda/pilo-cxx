@@ -48,7 +48,6 @@ namespace PILO {
             }
 
             virtual T next() {
-                std::cout << "Const next" << std::endl;
                 return _value;
             }
     };
@@ -80,6 +79,11 @@ namespace PILO {
         public:
             ExponentialDistribution(const YAML::Node& node, boost::mt19937& rng) :
                 _distro(node[SHAPE_KEY].as<T>()),
+                _var(rng, _distro) {
+            }
+
+            ExponentialDistribution(const T shape, boost::mt19937& rng) :
+                _distro(shape),
                 _var(rng, _distro) {
             }
 

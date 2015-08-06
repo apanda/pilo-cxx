@@ -21,6 +21,8 @@ namespace PILO {
                 CHANGE_RULES = 5,
                 SWITCH_INFORMATION = 6,
                 SWITCH_INFORMATION_REQ=7,
+                GOSSIP = 8,
+                GOSSIP_REP = 9,
                 END
             };
 

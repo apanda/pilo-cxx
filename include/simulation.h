@@ -21,7 +21,7 @@ namespace PILO {
     class Simulation {
         public:
             Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology, 
-                    const Time endTime, const Time time, const BPS bw); 
+                    const Time endTime, const Time refresh, const Time gossip, const BPS bw); 
             
             inline void run() {
                 while(_context.next());
@@ -78,13 +78,15 @@ namespace PILO {
                 igraph_destroy(&_graph);
             }
 
+            inline boost::mt19937& rng() { return _rng; }
+
             PILO::Context _context;
         private:
 
             void add_graph_link(const std::shared_ptr<PILO::Link>& link);
             void remove_graph_link(const std::shared_ptr<PILO::Link>& link);
 
-            node_map populate_nodes(Time refresh);
+            node_map populate_nodes(const Time refresh, const Time gossip);
 
             link_map populate_links(BPS bw);
             

@@ -12,6 +12,8 @@ namespace PILO {
         "CHANGE_RULES",
         "SWITCH_INFORMATION",
         "SWITCH_INFORMATION_REQ",
+        "GOSSIP",
+        "GOSSIP_REP",
         "END"
     };
     std::shared_ptr<Packet> Packet::make_packet(std::shared_ptr<Node> src, std::shared_ptr<Node> dest,

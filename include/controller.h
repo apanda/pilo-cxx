@@ -15,7 +15,8 @@ namespace PILO {
         public:
             Controller(Context& context,
                  const std::string& name,
-                 const Time referesh);
+                 const Time referesh,
+                 const Time gossip);
             
             virtual void receive(std::shared_ptr<Packet> packet, Link* link); 
 
@@ -53,8 +54,11 @@ namespace PILO {
             virtual void handle_link_up(const std::shared_ptr<Packet>& packet);
             virtual void handle_link_down(const std::shared_ptr<Packet>& packet);
             virtual void handle_switch_information(const std::shared_ptr<Packet>& packet);
+            virtual void handle_gossip(const std::shared_ptr<Packet>& packet);
+            virtual void handle_gossip_rep(const std::shared_ptr<Packet>& packet);
             void apply_patch(flowtable_db& diff);
             void send_switch_info_request();
+            void send_gossip_request();
 
         private:
             std::unordered_set<std::string> _controllers;
@@ -70,6 +74,7 @@ namespace PILO {
             std::unordered_set<uint64_t> _filter;
             std::unordered_set<std::string> _existingLinks;
             Time _refresh;
+            Time _gossip;
     };
 }
 #endif
