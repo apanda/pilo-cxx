@@ -94,7 +94,7 @@ namespace PILO {
     void Controller::handle_gossip(const std::shared_ptr<Packet>& packet) {
         auto response = _log.compute_response(packet);
         if (response.size() > 0) {
-            std::cout << _context.now() << " " << _name << " sending gossip response " << std::endl;
+            //std::cout << _context.now() << " " << _name << " sending gossip response " << std::endl;
             auto rpacket = Packet::make_packet(_name, packet->_source, Packet::GOSSIP_REP, 
                                                 Packet::HEADER + response.size() * (64 + 64 + 8));
             rpacket->data.gossipResponse = std::move(response);
@@ -103,7 +103,7 @@ namespace PILO {
     }
 
     void Controller::handle_gossip_rep(const std::shared_ptr<Packet>& packet) {
-        std::cout << _context.get_time() << " " << _name << " handle_gossip_rep" << std::endl;
+        //std::cout << _context.get_time() << " " << _name << " handle_gossip_rep" << std::endl;
         _log.merge_logs(packet);
     }
 
@@ -332,7 +332,7 @@ namespace PILO {
     void Log::add_link_event(const std::string& link, uint64_t version, Link::State state) {
         assert(_log.find(link) != _log.end());
         while (unlikely(version >= _sizes.at(link))) {
-            std::cout << "Growing log" << std::endl;
+            //std::cout << "Growing log" << std::endl;
             size_t new_size;
             size_t size = _sizes.at(link);
             if (likely(size < HWM)) {
@@ -378,7 +378,7 @@ namespace PILO {
                 first = false;
             }
             if (i < _max.at(link)) {
-                std::cout << "Found gap" << std::endl;
+                //std::cout << "Found gap" << std::endl;
                 // Found a gap
                 gaps.push_back(i);
                 // Figure out where gap ends
