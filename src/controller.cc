@@ -11,6 +11,10 @@ namespace PILO {
         _controllers(),
         _switches(),
         _nodes(),
+        _links(),
+        _linkVersion(),
+        _hostAtSwitch(),
+        _hostAtSwitchCount(),
         _vertices(),
         _filter(),
         _refresh(refresh),
@@ -143,13 +147,54 @@ namespace PILO {
         Node::silent_link_down(link);
     }
 
+    void Controller::add_new_link(const std::string& link, uint64_t version) {
+        _links.emplace(link);
+        _linkVersion.emplace(std::make_pair(link, version));
+        _log.open_log_link(link);
+    }
+
+    inline bool Controller::add_host_link(const std::string& link) {
+        std::string v0, v1;
+        std::tie(v0, v1) = split_parts(link);
+        if (_nodes.find(v0) != _nodes.end()) {
+            assert(_nodes.find(v1) == _nodes.end());
+            _hostAtSwitch.at(v1).push_front(v0);
+            _hostAtSwitchCount[v1]+=1;
+            return true;
+        } else if (_nodes.find(v1) != _nodes.end()) {
+            _hostAtSwitch.at(v0).push_front(v1);
+            _hostAtSwitchCount[v0]+=1;
+            return true;
+        }
+        return false;
+    }
+
+    inline bool Controller::remove_host_link(const std::string& link) {
+        std::string v0, v1;
+        std::tie(v0, v1) = split_parts(link);
+        if (_nodes.find(v0) != _nodes.end()) {
+            assert(_nodes.find(v1) == _nodes.end());
+            _hostAtSwitch.at(v1).remove(v0);
+            _hostAtSwitchCount[v1]--;
+            return true;
+        } else if (_nodes.find(v1) != _nodes.end()) {
+            _hostAtSwitch.at(v0).remove(v1);
+            _hostAtSwitchCount[v0]--;
+            return true;
+        }
+        return false;
+    }
+
+    inline std::pair<std::string, std::string> Controller::split_parts(const std::string& link) {
+        std::vector<std::string> parts;
+        boost::split(parts, link, boost::is_any_of("-"));
+        return std::make_pair(parts[0], parts[1]);
+    }
+
     bool Controller::add_link(const std::string& link, uint64_t version) {
 
-        // This is mostly to prevent adding a single link many times.
         if (_links.find(link) == _links.end()) {
-            _links.emplace(link);
-            _linkVersion.emplace(std::make_pair(link, version));
-            _log.open_log_link(link);
+            add_new_link(link, version);
         } else {
             // We have already seen this link state update (or a newer one)
             if (version <= _linkVersion.at(link)) {
@@ -161,13 +206,18 @@ namespace PILO {
         // Update the version.
         _linkVersion[link] = version;
         _log.add_link_event(link, version, Link::UP);
+        // This is mostly to prevent adding a single link many times.
         if (_existingLinks.find(link) != _existingLinks.end()) {
             return false;
         }
-        std::vector<std::string> parts;
         _existingLinks.emplace(link);
-        boost::split(parts, link, boost::is_any_of("-"));
-        igraph_add_edge(&_graph, _vertices.at(parts[0]), _vertices.at(parts[1]));
+        //add_host_link(link);
+
+        if (!add_host_link(link)) {
+            std::string v0, v1;
+            std::tie(v0, v1) = split_parts(link);
+            igraph_add_edge(&_graph, _vertices.at(v0), _vertices.at(v1));
+        }
         return true;
     }
 
@@ -184,34 +234,39 @@ namespace PILO {
             return false;
         }
 
-        std::vector<std::string> parts;
         _existingLinks.erase(link);
-        boost::split(parts, link, boost::is_any_of("-"));
-        igraph_integer_t eid;
-        igraph_get_eid(&_graph, &eid, _vertices.at(parts[0]), _vertices.at(parts[1]), IGRAPH_UNDIRECTED, 0);
-        assert(eid != -1);
-        igraph_delete_edges(&_graph, igraph_ess_1(eid));
+        if (!remove_host_link(link)) {
+            std::string v0, v1;
+            std::tie(v0, v1) = split_parts(link);
+
+            igraph_integer_t eid;
+            igraph_get_eid(&_graph, &eid, _vertices.at(v0), _vertices.at(v1), IGRAPH_UNDIRECTED, 0);
+            assert(eid != -1);
+            igraph_delete_edges(&_graph, igraph_ess_1(eid));
+        }
         return true;
     }
 
     void Controller::add_controllers(controller_map controllers) {
-        int count = 0;
+        //int count = 0;
         for (auto controller : controllers) {
             _controllers.emplace(controller.first);
             _nodes.emplace(controller.first);
-            igraph_integer_t idx = count + _usedVertices;
-            _vertices[controller.first] = idx;
-            _ivertices[idx] = controller.first;
-            count++;
+            //igraph_integer_t idx = count + _usedVertices;
+            //_vertices[controller.first] = idx;
+            //_ivertices[idx] = controller.first;
+            //count++;
         }
-        igraph_add_vertices(&_graph, count, NULL);
-        _usedVertices += count;
+        //igraph_add_vertices(&_graph, count, NULL);
+        //_usedVertices += count;
     }
 
     void Controller::add_switches(switch_map switches) {
         int count = 0;
         for (auto sw : switches) {
-            _controllers.emplace(sw.first);
+            _switches.emplace(sw.first);
+            _hostAtSwitch.emplace(std::make_pair(sw.first, std::forward_list<std::string>()));
+            _hostAtSwitchCount.emplace(std::make_pair(sw.first, 0ll));
             _flowDb.emplace(std::make_pair(sw.first, Packet::flowtable()));
             igraph_integer_t idx = count + _usedVertices;
             _vertices[sw.first] = idx;
@@ -223,16 +278,16 @@ namespace PILO {
     }
 
     void Controller::add_nodes(node_map nodes) {
-        int count = 0;
+        //int count = 0;
         for (auto node : nodes) {
             _nodes.emplace(node.first);
-            igraph_integer_t idx = count + _usedVertices;
-            _vertices[node.first] = idx;
-            _ivertices[idx] = node.first;
-            count++;
+            //igraph_integer_t idx = count + _usedVertices;
+            //_vertices[node.first] = idx;
+            //_ivertices[idx] = node.first;
+            //count++;
         }
-        igraph_add_vertices(&_graph, count, NULL);
-        _usedVertices += count;
+        //igraph_add_vertices(&_graph, count, NULL);
+        //_usedVertices += count;
     }
 
     Controller::flowtable_db Controller::compute_paths() {
@@ -244,53 +299,59 @@ namespace PILO {
         for (int v0_idx = 0; v0_idx < _usedVertices; v0_idx++) {
             std::string v0 = _ivertices.at(v0_idx);
 
-            if(_nodes.count(v0) == 0) {
+            if(_hostAtSwitch.at(v0).empty()) {
                 continue;
             }
 
             igraph_vector_ptr_init(&p, 0);
             igraph_vector_init(&l, 0);
             int ret = igraph_get_all_shortest_paths(&_graph, &p, &l, _vertices.at(v0), igraph_vss_all(), IGRAPH_ALL);
+            int base_idx = 0;
 
             (void)ret; // I like asserts
             assert(ret == 0);
             int len = igraph_vector_size(&l);
-            int base_idx = 0;
+            //std::cout << v0_idx << " all path size " << igraph_vector_ptr_size(&p) << std::endl;
 
             for (int v1_idx = 0; v1_idx < len; v1_idx++) {
                 std::string v1 = _ivertices.at(v1_idx);
                 int paths = VECTOR(l)[v1_idx];
-                if (_nodes.count(v1) > 0 && v0_idx != v1_idx) {
+                //std::cout << v0_idx << "  " << v1_idx << " path size " 
+                          //<< paths << " base_idx " << base_idx << std::endl;
+                if ((!_hostAtSwitch.at(v1).empty()) && v0_idx != v1_idx) {
                     if (paths > 0) {
-                        std::string psig = Packet::generate_signature(v0, v1, Packet::DATA);
-                        int path_idx = bias % paths;
-                        igraph_vector_t* path = (igraph_vector_t*)VECTOR(p)[path_idx + base_idx];
-                        int path_len = igraph_vector_size(path);
-                        for (int k = 1; k < path_len - 1; k++) {
-                            std::string sw = _ivertices.at(VECTOR(*path)[k]);
-                            std::string nh = _ivertices.at(VECTOR(*path)[k + 1]);
-                            std::string link = sw + "-" + nh;
-                            // Cannonicalize
-                            if (_links.find(link) == _links.end()) {
-                                link = nh + "-" + sw;
-                            }
-                            assert(_links.find(link) != _links.end());
-                            auto rule = _flowDb.at(sw).find(psig);
-                            if (rule == _flowDb.at(sw).end() ||
-                                rule->second != link) {
-                                _flowDb[sw][psig] = link;
-                                diffs[sw][psig] = link;
-                            } else {
+                        for (auto h0 : _hostAtSwitch.at(v0)) {
+                            for (auto h1 : _hostAtSwitch.at(v1)) {
+                                std::string psig = Packet::generate_signature(h0, h1, Packet::DATA);
+                                int path_idx = bias % paths;
+                                //std::cout << "\t" << bias << " " << paths << " " << path_idx << std::endl;
+                                //std::cout << "\t\t" << igraph_vector_ptr_size(&p) << std::endl;
+                                assert( path_idx + base_idx < igraph_vector_ptr_size(&p));
+                                igraph_vector_t* path = (igraph_vector_t*)VECTOR(p)[path_idx + base_idx];
+                                int path_len = igraph_vector_size(path);
+
+                                for (int k = 0; k < path_len - 1; k++) {
+                                    std::string sw = _ivertices.at(VECTOR(*path)[k]);
+                                    std::string nh = _ivertices.at(VECTOR(*path)[k + 1]);
+                                    std::string link = sw + "-" + nh;
+                                    // Cannonicalize
+                                    if (_links.find(link) == _links.end()) {
+                                        link = nh + "-" + sw;
+                                    }
+                                    assert(_links.find(link) != _links.end());
+                                    auto rule = _flowDb.at(sw).find(psig);
+                                    if (rule == _flowDb.at(sw).end() ||
+                                        rule->second != link) {
+                                        _flowDb[sw][psig] = link;
+                                        diffs[sw][psig] = link;
+                                    }
+                                    bias++;
+                                }
                             }
                         }
+                    } else {
+                        bias+=(_hostAtSwitchCount.at(v1) * _hostAtSwitchCount.at(v0));
                     }
-#if 0
-                    else {
-                        std::cout << "Cannot find path between " << v0 << "   " << v1 << std::endl;
-                        std::cout << "\t\t" << " edge count for graph is " << igraph_ecount(&_graph) << std::endl;
-                    }
-#endif
-                    bias ++;
                 }
                 base_idx += paths;
             }

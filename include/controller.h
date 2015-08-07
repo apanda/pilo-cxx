@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <forward_list>
 #include <memory>
 #include <igraph/igraph.h> // Graph processing (for the masses).
 #ifndef __CONTROLLER_H__
@@ -117,11 +118,17 @@ namespace PILO {
             void send_gossip_request();
 
         private:
+            void add_new_link(const std::string&, uint64_t);
+            inline bool add_host_link(const std::string&);
+            inline bool remove_host_link(const std::string&);
+            inline std::pair<std::string, std::string> split_parts(const std::string&);
             std::unordered_set<std::string> _controllers;
             std::unordered_set<std::string> _switches;
             std::unordered_set<std::string> _nodes;
             std::unordered_set<std::string> _links;
             std::unordered_map<std::string, uint64_t> _linkVersion;
+            std::unordered_map<std::string, std::forward_list<std::string>> _hostAtSwitch;
+            std::unordered_map<std::string, size_t> _hostAtSwitchCount;
             vertex_map _vertices;
             inv_vertex_map _ivertices;
             igraph_t _graph;
