@@ -76,6 +76,7 @@ namespace PILO {
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Link>> link_map;
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Switch>> switch_map;
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Controller>> controller_map;
+            typedef std::unordered_map<std::string, std::string> node_switch_map;
 
             virtual ~Simulation() {
                 igraph_destroy(&_graph);
@@ -88,6 +89,8 @@ namespace PILO {
 
             void add_graph_link(const std::shared_ptr<PILO::Link>& link);
             void remove_graph_link(const std::shared_ptr<PILO::Link>& link);
+            inline bool add_host_graph_link(const std::shared_ptr<PILO::Link>& link);
+            inline bool remove_host_graph_link(const std::shared_ptr<PILO::Link>& link);
 
             node_map populate_nodes(const Time refresh, const Time gossip);
 
@@ -104,6 +107,7 @@ namespace PILO {
             Distribution<PILO::Time> *_latency;
             Controller::vertex_map _vmap;
             Controller::inv_vertex_map _ivmap;
+            node_switch_map _nsmap;
             switch_map _switches;
             controller_map _controllers;
             node_map _others;

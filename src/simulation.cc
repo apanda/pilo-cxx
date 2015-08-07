@@ -22,6 +22,7 @@ namespace PILO {
         _latency(Distribution<PILO::Time>::get_distribution(_configuration["data_link_latency"], _rng)),
         _vmap(),
         _ivmap(),
+        _nsmap(),
         _switches(),
         _controllers(),
         _others(),
@@ -53,14 +54,13 @@ namespace PILO {
             }
             std::string type_str = node.second[TYPE_KEY].as<std::string>();
 
-            _vmap.emplace(std::make_pair(node_str, count));
-            _ivmap.emplace(std::make_pair(count, node_str));
-            count++;
-
             if (type_str == SWITCH_TYPE) {
                 auto sw = std::make_shared<Switch>(_context, node_str);
                 nodeMap.emplace(std::make_pair(node_str, sw));
                 _switches.emplace(std::make_pair(node_str, sw));
+                _vmap.emplace(std::make_pair(node_str, count));
+                _ivmap.emplace(std::make_pair(count, node_str));
+                count++;
             } else if (type_str == CONTROLLER_TYPE) {
                 auto c = std::make_shared<Controller>(_context, node_str, refresh, gossip);
                 std::cout << "Controller " << node_str << std::endl;
@@ -90,13 +90,37 @@ namespace PILO {
         return linkMap;
     }
 
+    bool Simulation::add_host_graph_link(const std::shared_ptr<PILO::Link>& link) {
+        if (_switches.find(link->_a->_name) == _switches.end()) {
+            _nsmap.emplace(std::make_pair(link->_a->_name, link->_b->_name));
+            return true;
+        } else if (_switches.find(link->_b->_name) == _switches.end()) {
+            _nsmap.emplace(std::make_pair(link->_b->_name, link->_a->_name));
+            return true;
+        }
+        return false;
+    }
+
+    bool Simulation::remove_host_graph_link(const std::shared_ptr<PILO::Link>& link) {
+        if (_switches.find(link->_a->_name) == _switches.end()) {
+            _nsmap.erase(link->_a->_name);
+            return true;
+        } else if (_switches.find(link->_b->_name) == _switches.end()) {
+            _nsmap.erase(link->_b->_name);
+            return true;
+        }
+        return false;
+    }
+
     void Simulation::add_graph_link(const std::shared_ptr<PILO::Link>& link) {
+        if (add_host_graph_link(link)) return;
         uint32_t e0 = _vmap.at(link->_a->_name);
         uint32_t e1 = _vmap.at(link->_b->_name);
         igraph_add_edge(&_graph, e0, e1);
     }
 
     void Simulation::remove_graph_link(const std::shared_ptr<PILO::Link>& link) {
+        if (remove_host_graph_link(link)) return;
         uint32_t e0 = _vmap.at(link->_a->_name);
         uint32_t e1 = _vmap.at(link->_b->_name);
         igraph_integer_t eid;
@@ -200,17 +224,22 @@ namespace PILO {
 
         for (auto h1 : _others) {
             for (auto h2 : _others) {
-#if 0
+//#if 0
                 std::cout << "Going to check" << std::endl;
                 std::cout << "\t" << h1.first << "   " << h2.first << "    ";
-#endif
+//#endif
                 if (h1.first == h2.first) {
                     //std::cout << "skip (same)" << std::endl;
                     continue;
                 }
                 // Skip if the underlying topology is disconnected
-                if (MATRIX(distances, _vmap.at(h1.first), _vmap.at(h2.first)) == IGRAPH_INFINITY) {
-                    //std::cout << "skip (!connected)" << std::endl;
+                if (_nsmap.find(h1.first) == _nsmap.end() || _nsmap.find(h2.first) == _nsmap.end()) {
+                    continue;
+                }
+                igraph_integer_t v0 = _vmap.at(_nsmap.at(h1.first));
+                igraph_integer_t v1 = _vmap.at(_nsmap.at(h2.first));
+                if (MATRIX(distances, v0, v1) == IGRAPH_INFINITY) {
+                    std::cout << "skip (!connected)" << std::endl;
                     continue;
                 }
 
@@ -244,7 +273,7 @@ namespace PILO {
                 }
             }
         }
-        //std::cout << "\tChecked " << checked << "    passed   " << passed << std::endl;
+        std::cout << "\tChecked " << checked << "    passed   " << passed << std::endl;
         igraph_matrix_destroy(&distances);
 
         return ((double)passed)/((double)checked);
