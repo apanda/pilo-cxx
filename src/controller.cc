@@ -318,8 +318,8 @@ namespace PILO {
                 int paths = VECTOR(l)[v1_idx];
                 //std::cout << v0_idx << "  " << v1_idx << " path size " 
                           //<< paths << " base_idx " << base_idx << std::endl;
-                if ((!_hostAtSwitch.at(v1).empty()) && v0_idx != v1_idx) {
-                    if (paths > 0) {
+                if ((!_hostAtSwitch.at(v1).empty())) {
+                    if (v0_idx != v1_idx && paths > 0) {
                         for (auto h0 : _hostAtSwitch.at(v0)) {
                             for (auto h1 : _hostAtSwitch.at(v1)) {
                                 std::string psig = Packet::generate_signature(h0, h1, Packet::DATA);
@@ -330,9 +330,14 @@ namespace PILO {
                                 igraph_vector_t* path = (igraph_vector_t*)VECTOR(p)[path_idx + base_idx];
                                 int path_len = igraph_vector_size(path);
 
-                                for (int k = 0; k < path_len - 1; k++) {
+                                for (int k = 0; k < path_len; k++) {
                                     std::string sw = _ivertices.at(VECTOR(*path)[k]);
-                                    std::string nh = _ivertices.at(VECTOR(*path)[k + 1]);
+                                    std::string nh;
+                                    if (k + 1 < path_len) {
+                                        nh = _ivertices.at(VECTOR(*path)[k + 1]);
+                                    } else {
+                                        nh = h1;
+                                    }
                                     std::string link = sw + "-" + nh;
                                     // Cannonicalize
                                     if (_links.find(link) == _links.end()) {
@@ -347,6 +352,30 @@ namespace PILO {
                                     }
                                     bias++;
                                 }
+                            }
+                        }
+                    } else if (v0_idx == v1_idx) {
+                        // Set up paths between things connected to the same switch.
+                        for (auto h0 : _hostAtSwitch.at(v0)) {
+                            for (auto h1 : _hostAtSwitch.at(v1)) {
+                                if (h0 == h1) {
+                                    continue;
+                                }
+                                std::string psig = Packet::generate_signature(h0, h1, Packet::DATA);
+                                std::string link = v0 + "-" + h1;
+                                auto sw = v0;
+                                // Cannonicalize
+                                if (_links.find(link) == _links.end()) {
+                                    link = h1 + "-" + v0;
+                                }
+                                assert(_links.find(link) != _links.end());
+                                auto rule = _flowDb.at(sw).find(psig);
+                                if (rule == _flowDb.at(sw).end() ||
+                                    rule->second != link) {
+                                    _flowDb[sw][psig] = link;
+                                    diffs[sw][psig] = link;
+                                }
+                                bias++;
                             }
                         }
                     } else {
