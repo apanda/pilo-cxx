@@ -172,11 +172,21 @@ namespace PILO {
         for (auto c : _controllers) {
             diffs = std::move(c.second->compute_paths());
         }
-
+        size_t min = 1ull<<33, max = 0, count = 0, total = 0;
         for (auto diff : diffs) {
+            count++;
+            size_t sz = diff.second.size();
+            if (sz < min) { 
+                min = sz;
+            }
+            if (sz > max) {
+                max = sz;
+            }
+            total += sz;
             auto sw = _switches.at(diff.first);
             sw->install_flow_table(diff.second);
         }
+        std::cout << "Rule sizes: min " << min << " max " << max << " count " << count << " total " << total << std::endl;
     }
 
     double Simulation::check_routes() const {
