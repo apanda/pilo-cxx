@@ -224,10 +224,10 @@ namespace PILO {
 
         for (auto h1 : _others) {
             for (auto h2 : _others) {
-//#if 0
+#if 0
                 std::cout << "Going to check" << std::endl;
                 std::cout << "\t" << h1.first << "   " << h2.first << "    ";
-//#endif
+#endif
                 if (h1.first == h2.first) {
                     //std::cout << "skip (same)" << std::endl;
                     continue;
