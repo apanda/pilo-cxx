@@ -117,5 +117,5 @@ int main(int argc, char* argv[]) {
     }
 
     simulation.dump_bw_used();
-    return 1;
+    return 0;
 }
