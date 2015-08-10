@@ -295,6 +295,7 @@ namespace PILO {
         igraph_vector_ptr_t p;
         flowtable_db diffs;
         int bias = 0;
+        std::cout << _name << " Beginning computation " << std::endl;
 
         for (int v0_idx = 0; v0_idx < _usedVertices; v0_idx++) {
             std::string v0 = _ivertices.at(v0_idx);
@@ -305,7 +306,9 @@ namespace PILO {
 
             igraph_vector_ptr_init(&p, 0);
             igraph_vector_init(&l, 0);
-            int ret = igraph_get_all_shortest_paths(&_graph, &p, &l, _vertices.at(v0), igraph_vss_all(), IGRAPH_ALL);
+            std::cout << _name <<" Computing shortest paths for " << v0 << std::endl;
+            int ret = igraph_get_all_shortest_paths(&_graph, &p, &l, v0_idx, igraph_vss_all(), IGRAPH_ALL);
+            std::cout << _name <<" Done Computing shortest paths for " << v0 << std::endl;
             int base_idx = 0;
 
             (void)ret; // I like asserts
@@ -313,6 +316,7 @@ namespace PILO {
             int len = igraph_vector_size(&l);
             //std::cout << v0_idx << " all path size " << igraph_vector_ptr_size(&p) << std::endl;
 
+            std::cout << _name << " Generating  " << len << " paths from "  << v0 << std::endl;
             for (int v1_idx = 0; v1_idx < len; v1_idx++) {
                 std::string v1 = _ivertices.at(v1_idx);
                 int paths = VECTOR(l)[v1_idx];
@@ -384,10 +388,13 @@ namespace PILO {
                 }
                 base_idx += paths;
             }
+            std::cout << _name << " Done generating  " << len << " paths from "  << v0 << std::endl;
 
             igraph_vector_ptr_destroy_all(&p);
             igraph_vector_destroy(&l);
+            std::cout << _name << " Done destroying  vectors and paths for "  << v0 << std::endl;
         }
+        std::cout << _name << " Done computing " << std::endl;
         return diffs;
     }
 
