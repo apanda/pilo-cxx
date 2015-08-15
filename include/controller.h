@@ -6,6 +6,7 @@
 #include <vector>
 #include <forward_list>
 #include <memory>
+#include <boost/algorithm/string.hpp>
 #include <igraph/igraph.h> // Graph processing (for the masses).
 #ifndef __CONTROLLER_H__
 #define __CONTROLLER_H__
@@ -95,11 +96,11 @@ namespace PILO {
             void add_switches(switch_map switches);
             void add_nodes(node_map nodes);
 
-            bool add_link(const std::string& link, uint64_t version);
-            bool remove_link(const std::string& link, uint64_t version);
+            virtual bool add_link(const std::string& link, uint64_t version);
+            virtual bool remove_link(const std::string& link, uint64_t version);
 
             // Compute paths, return a diff of what needs to be fixed.
-            flowtable_db compute_paths ();
+            virtual flowtable_db compute_paths ();
 
             // Respond to various control messages.
             virtual void handle_link_up(const std::shared_ptr<Packet>& packet);
@@ -109,15 +110,14 @@ namespace PILO {
             virtual void handle_gossip_rep(const std::shared_ptr<Packet>& packet);
 
             // Given a diff, packetize things and send rule updates to switches.
-            void apply_patch(flowtable_db& diff);
+            virtual void apply_patch(flowtable_db& diff);
 
             // Periodically query switches for information.
-            void send_switch_info_request();
+            virtual void send_switch_info_request();
 
             // Periodically gossip with controllers
-            void send_gossip_request();
+            virtual void send_gossip_request();
 
-        private:
             void add_new_link(const std::string&, uint64_t);
             inline bool add_host_link(const std::string&);
             inline bool remove_host_link(const std::string&);
@@ -139,6 +139,7 @@ namespace PILO {
             Time _refresh;
             Time _gossip;
             Log _log;
+            boost::hash<std::string> _hash;
     };
 }
 #endif

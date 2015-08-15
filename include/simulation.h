@@ -1,6 +1,7 @@
 #include <iostream>
 #include <list>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string.hpp>
@@ -14,6 +15,7 @@
 #include "packet.h"
 #include "switch.h"
 #include "controller.h"
+#include "te_controller.h"
 
 #ifndef __SIMULATION_H__
 #define __SIMULATION_H__
@@ -27,12 +29,17 @@ namespace PILO {
 
             // Run to completion
             inline void run() {
-                while(_context.next());
+                while(!_stopped && _context.next());
             }
 
             // Return a random link
             inline std::shared_ptr<PILO::Link> random_link() {
                 return std::next(std::begin(_links), _linkRng.next())->second;
+            }
+            
+            // Return a random switch link
+            inline std::shared_ptr<PILO::Link> random_switch_link() {
+                return _links.at(*std::next(std::begin(_switchLinks), _swLinkRng.next()));
             }
 
             // Return a random node
@@ -49,6 +56,8 @@ namespace PILO {
             inline std::shared_ptr<PILO::Link> get_link(const std::string& id) const {
                 return _links.at(id);
             }
+
+            void stop() {_stopped = true;}
 
             void set_all_links_up();
 
@@ -77,6 +86,7 @@ namespace PILO {
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Switch>> switch_map;
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Controller>> controller_map;
             typedef std::unordered_map<std::string, std::string> node_switch_map;
+            typedef std::unordered_set<std::string> link_set;
 
             virtual ~Simulation() {
                 igraph_destroy(&_graph);
@@ -112,9 +122,12 @@ namespace PILO {
             controller_map _controllers;
             node_map _others;
             node_map _nodes;
+            link_set _switchLinks;
             link_map _links;
+            UniformIntDistribution _swLinkRng;
             UniformIntDistribution _linkRng;
             UniformIntDistribution _nodeRng;
+            bool _stopped;
     };
 }
 #endif

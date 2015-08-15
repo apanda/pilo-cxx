@@ -8,6 +8,7 @@ namespace {
     const std::string ARG_KEY = "args";
     const std::string HOST_TYPE = "Host";
     const std::string CONTROLLER_TYPE = "LSGossipControl";
+    const std::string TE_CONTROLLER_TYPE = "LSTEControl";
     const std::string SWITCH_TYPE = "LinkStateSwitch";
 }
 
@@ -27,9 +28,12 @@ namespace PILO {
         _controllers(),
         _others(),
         _nodes(std::move(populate_nodes(refresh, gossip))),
+        _switchLinks(),
         _links(std::move(populate_links(bw))),
+        _swLinkRng(0, _switchLinks.size() - 1, _rng),
         _linkRng(0, _links.size() - 1, _rng),
-        _nodeRng(0, _nodes.size() - 1, _rng) {
+        _nodeRng(0, _nodes.size() - 1, _rng),
+        _stopped(false) {
 
         // Populate controller information
         for (auto controller : _controllers) {
@@ -61,6 +65,11 @@ namespace PILO {
                 _vmap.emplace(std::make_pair(node_str, count));
                 _ivmap.emplace(std::make_pair(count, node_str));
                 count++;
+            } else if (type_str == TE_CONTROLLER_TYPE) {
+                auto c = std::make_shared<TeController>(_context, node_str, refresh, gossip);
+                std::cout << "Controller " << node_str << std::endl;
+                nodeMap.emplace(std::make_pair(node_str, c));
+                _controllers.emplace(std::make_pair(node_str, c));
             } else if (type_str == CONTROLLER_TYPE) {
                 auto c = std::make_shared<Controller>(_context, node_str, refresh, gossip);
                 std::cout << "Controller " << node_str << std::endl;
@@ -86,6 +95,10 @@ namespace PILO {
             linkMap.emplace(std::make_pair(link_str,
                         std::make_shared<Link>(_context, link_str,
                             _latency, bw, _nodes.at(parts[0]), _nodes.at(parts[1]))));
+            if (_switches.find(parts[0]) != _switches.end() &&
+                _switches.find(parts[1]) != _switches.end()) {
+                _switchLinks.emplace(link_str);
+            }
         }
         return linkMap;
     }

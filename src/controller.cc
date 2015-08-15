@@ -1,7 +1,7 @@
 #include "controller.h"
 #include "packet.h"
-#include <boost/algorithm/string.hpp>
 #include <algorithm>
+#include <boost/functional/hash.hpp>
 // I know these are unnecessary here, but I was having some fun.
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
@@ -114,10 +114,12 @@ namespace PILO {
     }
 
     void Controller::apply_patch(flowtable_db& diff) {
+        size_t rule_updates = 0;
         for (auto part : diff) {
             auto dest = part.first;
             auto patch = part.second;
             size_t patch_size = patch.size();
+            rule_updates += patch_size;
             //std::cout << _context.get_time() << " " << _name << " sending a patch to " << dest << std::endl;
             // Each rule is header + link to go out
             size_t packet_size = Packet::HEADER + patch_size * (64 + Packet::HEADER);
@@ -125,6 +127,7 @@ namespace PILO {
             update->data.table.swap(patch);
             flood(std::move(update));
         }
+        std::cout << _context.get_time() << "  " << _name << " patch_size " << rule_updates << std::endl;
     }
 
     void Controller::notify_link_existence(Link* link) {
@@ -294,7 +297,6 @@ namespace PILO {
         igraph_vector_t l;
         igraph_vector_ptr_t p;
         flowtable_db diffs;
-        int bias = 0;
         std::cout << _name << " Beginning computation " << std::endl;
 
         for (int v0_idx = 0; v0_idx < _usedVertices; v0_idx++) {
@@ -327,7 +329,8 @@ namespace PILO {
                         for (auto h0 : _hostAtSwitch.at(v0)) {
                             for (auto h1 : _hostAtSwitch.at(v1)) {
                                 std::string psig = Packet::generate_signature(h0, h1, Packet::DATA);
-                                int path_idx = bias % paths;
+                                size_t hash = _hash(psig);
+                                int path_idx = hash % paths;
                                 //std::cout << "\t" << bias << " " << paths << " " << path_idx << std::endl;
                                 //std::cout << "\t\t" << igraph_vector_ptr_size(&p) << std::endl;
                                 assert( path_idx + base_idx < igraph_vector_ptr_size(&p));
@@ -354,7 +357,6 @@ namespace PILO {
                                         _flowDb[sw][psig] = link;
                                         diffs[sw][psig] = link;
                                     }
-                                    bias++;
                                 }
                             }
                         }
@@ -379,11 +381,8 @@ namespace PILO {
                                     _flowDb[sw][psig] = link;
                                     diffs[sw][psig] = link;
                                 }
-                                bias++;
                             }
                         }
-                    } else {
-                        bias+=(_hostAtSwitchCount.at(v1) * _hostAtSwitchCount.at(v0));
                     }
                 }
                 base_idx += paths;
