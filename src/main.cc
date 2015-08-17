@@ -32,6 +32,7 @@ int main(int argc, char* argv[]) {
     bool one_link = false;
     bool crit_link = false;
     std::string fail_link;
+    int flow_limit = 1;
 
     // Argument parsing
     po::options_description args("PILO simulation");
@@ -60,7 +61,9 @@ int main(int argc, char* argv[]) {
         ("one,o",  "Simulate single link failure")
         ("critlinks,i", "Only fail switch <--> switch links")
         ("fail", po::value<std::string>(&fail_link),
-            "Fail a specific link");
+            "Fail a specific link")
+        ("l,limit", po::value<int>(&flow_limit)->default_value(100),
+            "TE (L)imit");
     po::variables_map vmap;
     po::store(po::command_line_parser(argc, argv).options(args).run(), vmap);
     po::notify(vmap);
@@ -82,7 +85,8 @@ int main(int argc, char* argv[]) {
     one_link = vmap.count("one");
     crit_link = vmap.count("critlinks");
 
-    PILO::Simulation simulation(seed, configuration, topology, end_time, refresh, gossip, bw);
+    std::cout << "Simulation setting limit to " << flow_limit << std::endl;
+    PILO::Simulation simulation(seed, configuration, topology, end_time, refresh, gossip, bw, flow_limit);
     simulation.set_all_links_up_silent();
     simulation.install_all_routes();
     std::cout << "Pre run check = " << simulation.check_routes() << std::endl;

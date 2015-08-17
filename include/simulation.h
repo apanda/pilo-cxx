@@ -25,7 +25,7 @@ namespace PILO {
     class Simulation {
         public:
             Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology,
-                    const Time endTime, const Time refresh, const Time gossip, const BPS bw);
+                    const Time endTime, const Time refresh, const Time gossip, const BPS bw, const int limit);
 
             // Run to completion
             inline void run() {
@@ -106,6 +106,7 @@ namespace PILO {
 
             link_map populate_links(BPS bw);
 
+            int  _flowLimit;
             uint32_t _seed;
             boost::mt19937 _rng;
 

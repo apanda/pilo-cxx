@@ -14,8 +14,10 @@ namespace {
 
 namespace PILO {
     Simulation::Simulation(const uint32_t seed, const std::string& configuration,
-            const std::string& topology, const Time endTime, const Time refresh, const Time gossip, const BPS bw) :
+            const std::string& topology, const Time endTime, const Time refresh,
+            const Time gossip, const BPS bw, const int limit) :
         _context(endTime),
+        _flowLimit(limit),
         _seed(seed),
         _rng(_seed),
         _configuration(YAML::LoadFile(configuration)),
@@ -35,6 +37,7 @@ namespace PILO {
         _nodeRng(0, _nodes.size() - 1, _rng),
         _stopped(false) {
 
+        std::cout << "PILO simulation set limit = " << _flowLimit << "    " << limit << std::endl;
         // Populate controller information
         for (auto controller : _controllers) {
             auto cobj = controller.second;
@@ -66,8 +69,9 @@ namespace PILO {
                 _ivmap.emplace(std::make_pair(count, node_str));
                 count++;
             } else if (type_str == TE_CONTROLLER_TYPE) {
-                auto c = std::make_shared<TeController>(_context, node_str, refresh, gossip);
-                std::cout << "Controller " << node_str << std::endl;
+                std::cout << "PILO simulation set limit = " << _flowLimit << std::endl;
+                auto c = std::make_shared<TeController>(_context, node_str, refresh, gossip, _flowLimit);
+                std::cout << "TE Controller " << node_str << std::endl;
                 nodeMap.emplace(std::make_pair(node_str, c));
                 _controllers.emplace(std::make_pair(node_str, c));
             } else if (type_str == CONTROLLER_TYPE) {
@@ -213,7 +217,7 @@ namespace PILO {
         for (auto diff : diffs) {
             count++;
             size_t sz = diff.second.size();
-            if (sz < min) { 
+            if (sz < min) {
                 min = sz;
             }
             if (sz > max) {

@@ -119,6 +119,7 @@ namespace PILO {
             virtual void send_gossip_request();
 
             void add_new_link(const std::string&, uint64_t);
+            inline bool is_host_link(const std::string&);
             inline bool add_host_link(const std::string&);
             inline bool remove_host_link(const std::string&);
             inline std::pair<std::string, std::string> split_parts(const std::string&);
@@ -141,5 +142,18 @@ namespace PILO {
             Log _log;
             boost::hash<std::string> _hash;
     };
+
+    inline bool Controller::is_host_link(const std::string& link) {
+        std::string v0, v1;
+        std::tie(v0, v1) = split_parts(link);
+        return ((_nodes.find(v0) != _nodes.end()) ||
+               (_nodes.find(v1) != _nodes.end()));
+    }
+
+    inline std::pair<std::string, std::string> Controller::split_parts(const std::string& link) {
+        std::vector<std::string> parts;
+        boost::split(parts, link, boost::is_any_of("-"));
+        return std::make_pair(parts[0], parts[1]);
+    }
 }
 #endif

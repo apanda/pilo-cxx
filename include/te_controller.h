@@ -28,12 +28,14 @@ namespace PILO {
             TeController(Context& context,
                  const std::string& name,
                  const Time referesh,
-                 const Time gossip);
+                 const Time gossip,
+                 const int max_load);
 
             // igraph is not C++, and allocates memory. So be nice and remove things.
             virtual ~TeController() {}
 
         protected:
+            const int _maxLoad;
             // Compute paths, return a diff of what needs to be fixed.
             flowtable_db compute_paths ();
     };

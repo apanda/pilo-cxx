@@ -188,12 +188,6 @@ namespace PILO {
         return false;
     }
 
-    inline std::pair<std::string, std::string> Controller::split_parts(const std::string& link) {
-        std::vector<std::string> parts;
-        boost::split(parts, link, boost::is_any_of("-"));
-        return std::make_pair(parts[0], parts[1]);
-    }
-
     bool Controller::add_link(const std::string& link, uint64_t version) {
 
         if (_links.find(link) == _links.end()) {
@@ -214,7 +208,6 @@ namespace PILO {
             return false;
         }
         _existingLinks.emplace(link);
-        //add_host_link(link);
 
         if (!add_host_link(link)) {
             std::string v0, v1;
