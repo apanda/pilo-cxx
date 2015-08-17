@@ -79,8 +79,6 @@ namespace PILO {
                                             recomputed = true;
                                         }
                                     }
-                                    std::cout << "Path between " << h0 << " " << h1 << " Link " << link << std::endl;
-
                                     assert(_links.find(link) != _links.end());
                                     auto rule = _flowDb.at(sw).find(psig);
                                     if (rule == _flowDb.at(sw).end() ||
@@ -94,7 +92,6 @@ namespace PILO {
                                             std::cout << "Warning: Removal made paths infeasible" << std::endl;
                                         }
                                         path_len = igraph_vector_size(&path);
-                                        std::cout << "Recomputed path, len is " << igraph_vector_size(&path) << std::endl;
                                     }
                                 }
                             }

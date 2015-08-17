@@ -37,6 +37,8 @@ namespace PILO {
         _nodeRng(0, _nodes.size() - 1, _rng),
         _stopped(false) {
 
+        // Do not print igraph warnings
+        igraph_set_warning_handler(igraph_warning_handler_ignore);
         std::cout << "PILO simulation set limit = " << _flowLimit << "    " << limit << std::endl;
         // Populate controller information
         for (auto controller : _controllers) {
