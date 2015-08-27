@@ -35,7 +35,7 @@ namespace PILO {
             // If the packet is intended for the switch, process it.
             switch (packet->_type) {
                 case Packet::CHANGE_RULES:
-                    install_flow_table(packet->data.table);
+                    install_flow_table(packet->data.table, packet->data.deleteEntries);
                     break;
                 case Packet::SWITCH_INFORMATION_REQ: {
                         auto response = Packet::make_packet(_name, packet->_source,
@@ -66,12 +66,16 @@ namespace PILO {
         for (auto rules : table) {
             if (_forwardingTable.find(rules.first) !=
                 _forwardingTable.end()) {
-                if (_forwardingTable.at(rules.first) == rules.second) {
-                    continue;
+                if (_forwardingTable.at(rules.first) != rules.second) {
+                    // Decrement since we are about to change to some other link
+                    _linkStats.at(_forwardingTable.at(rules.first))--;
+                    _linkStats.at(rules.second)++;
+                    _forwardingTable[rules.first] = rules.second;
                 }
-                _linkStats[rules.second] ++;
+            } else { 
+                _linkStats.at(rules.second)++;
+                _forwardingTable[rules.first] = rules.second;
             }
-            _forwardingTable[rules.first] = rules.second;
         }
 
     }
@@ -80,7 +84,7 @@ namespace PILO {
         install_flow_table(table);
         for (auto rule : remove) {
             if (_forwardingTable.find(rule) != _forwardingTable.end()) {
-                _linkStats[_forwardingTable.at(rule)]--;
+                _linkStats.at(_forwardingTable.at(rule))--;
                 _forwardingTable.erase(rule);
             }
         }

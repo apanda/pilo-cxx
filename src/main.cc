@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
     PILO::Time mttr;
     PILO::Time gossip;
     std::unordered_map<PILO::Time, double> converged;
+    std::unordered_map<PILO::Time, uint32_t> max_load;
     bool one_link = false;
     bool crit_link = false;
     std::string fail_link;
@@ -96,7 +97,8 @@ int main(int argc, char* argv[]) {
 
     for (PILO::Time time = measure; time <= end_time; time+=measure) {
         simulation._context.schedule(time, [&](PILO::Time t) {converged[t] = simulation.check_routes();});
-        simulation._context.schedule(time, [&](PILO::Time) {simulation.dump_link_usage();});
+        simulation._context.schedule(time, [&](PILO::Time t) {simulation.dump_link_usage(); 
+                                                              max_load[t] = simulation.max_link_usage();});
     }
 
     std::cout << "Setting up trace" << std::endl;
@@ -144,7 +146,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Fin." << std::endl;
     std::cout << "Convergence " << std::endl;
     for (PILO::Time time = measure; time <= end_time; time+=measure) {
-        std::cout << " !  " << time << " " << converged.at(time) << std::endl;
+        std::cout << " !  " << time << " " << converged.at(time) << " " << max_load.at(time) << std::endl;
     }
 
     simulation.dump_bw_used();

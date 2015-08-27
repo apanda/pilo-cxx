@@ -327,11 +327,12 @@ namespace PILO {
     }
 
     uint32_t Simulation::max_link_usage() const {
+        auto controller = std::begin(_controllers)->second;
         uint32_t max = 0;
         for (auto sw_pair : _switches) {
             auto sw = sw_pair.second;
             for (auto l_pair : sw->_linkStats) {
-                if (max < l_pair.second) {
+                if (!controller->is_host_link(l_pair.first) && max < l_pair.second) {
                     max = l_pair.second;
                 }
             }
@@ -340,11 +341,14 @@ namespace PILO {
     }
 
     void Simulation::dump_link_usage() const {
+        auto controller = std::begin(_controllers)->second;
         for (auto sw_pair : _switches) {
             auto name = sw_pair.first;
             auto sw = sw_pair.second;
             for (auto l_pair : sw->_linkStats) {
-                std::cout << "\t\t" << name << " " << l_pair.first << " "  << l_pair.second << std::endl;
+                if (!controller->is_host_link(l_pair.first)) {
+                    std::cout << "\t\t" << name << " " << l_pair.first << " "  << l_pair.second << std::endl;
+                }
             }
         }
     }
