@@ -328,7 +328,7 @@ namespace PILO {
 
     uint32_t Simulation::max_link_usage() const {
         auto controller = std::begin(_controllers)->second;
-        uint32_t max = 0;
+        int32_t max = 0;
         for (auto sw_pair : _switches) {
             auto sw = sw_pair.second;
             for (auto l_pair : sw->_linkStats) {
