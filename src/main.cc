@@ -96,6 +96,7 @@ int main(int argc, char* argv[]) {
 
     for (PILO::Time time = measure; time <= end_time; time+=measure) {
         simulation._context.schedule(time, [&](PILO::Time t) {converged[t] = simulation.check_routes();});
+        simulation._context.schedule(time, [&](PILO::Time) {simulation.dump_link_usage();});
     }
 
     std::cout << "Setting up trace" << std::endl;

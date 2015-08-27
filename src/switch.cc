@@ -64,6 +64,13 @@ namespace PILO {
 
     void Switch::install_flow_table(const Packet::flowtable& table) {
         for (auto rules : table) {
+            if (_forwardingTable.find(rules.first) !=
+                _forwardingTable.end()) {
+                if (_forwardingTable.at(rules.first) == rules.second) {
+                    continue;
+                }
+                _linkStats[rules.second] ++;
+            }
             _forwardingTable[rules.first] = rules.second;
         }
 
@@ -72,13 +79,17 @@ namespace PILO {
         //std::cout << _context.get_time() << " " << _name << " installing rules" << std::endl;
         install_flow_table(table);
         for (auto rule : remove) {
-            _forwardingTable.erase(rule);
+            if (_forwardingTable.find(rule) != _forwardingTable.end()) {
+                _linkStats[_forwardingTable.at(rule)]--;
+                _forwardingTable.erase(rule);
+            }
         }
     }
 
     void Switch::notify_link_existence(Link* link) {
         Node::notify_link_existence(link);
         _linkState.emplace(std::make_pair(link->name(), Link::DOWN));
+        _linkStats.emplace(std::make_pair(link->name(), 0));
     }
 
     void Switch::notify_link_up(Link* link) {

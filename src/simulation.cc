@@ -325,4 +325,27 @@ namespace PILO {
                 << std::fixed << overall << " link " << std::fixed <<  per_link << std::endl;
         }
     }
+
+    uint32_t Simulation::max_link_usage() const {
+        uint32_t max = 0;
+        for (auto sw_pair : _switches) {
+            auto sw = sw_pair.second;
+            for (auto l_pair : sw->_linkStats) {
+                if (max < l_pair.second) {
+                    max = l_pair.second;
+                }
+            }
+        }
+        return max;
+    }
+
+    void Simulation::dump_link_usage() const {
+        for (auto sw_pair : _switches) {
+            auto name = sw_pair.first;
+            auto sw = sw_pair.second;
+            for (auto l_pair : sw->_linkStats) {
+                std::cout << "\t\t" << name << " " << l_pair.first << " "  << l_pair.second << std::endl;
+            }
+        }
+    }
 }

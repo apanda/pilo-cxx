@@ -79,6 +79,10 @@ namespace PILO {
 
             double check_routes() const;
 
+            uint32_t max_link_usage() const;
+
+            void dump_link_usage() const;
+
             void dump_bw_used() const;
 
             typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;

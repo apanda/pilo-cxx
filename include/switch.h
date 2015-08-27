@@ -30,6 +30,7 @@ namespace PILO {
 
         private:
             std::unordered_map<std::string, Link::State> _linkState;
+            std::unordered_map<std::string, int32_t> _linkStats; // Assume < 2^31 paths through a link.
             std::unordered_set<uint64_t> _filter;
             Packet::flowtable _forwardingTable;
     };
