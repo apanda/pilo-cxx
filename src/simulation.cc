@@ -213,7 +213,7 @@ namespace PILO {
     void Simulation::install_all_routes() {
         Controller::flowtable_db diffs;
         for (auto c : _controllers) {
-            diffs = std::move(c.second->compute_paths());
+            std::tie(diffs, std::ignore) = c.second->compute_paths();
         }
         size_t min = 1ull<<33, max = 0, count = 0, total = 0;
         for (auto diff : diffs) {

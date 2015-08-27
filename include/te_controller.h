@@ -37,7 +37,7 @@ namespace PILO {
         protected:
             const int _maxLoad;
             // Compute paths, return a diff of what needs to be fixed.
-            flowtable_db compute_paths ();
+            virtual std::pair<flowtable_db, deleted_entries> compute_paths ();
     };
 }
 #endif

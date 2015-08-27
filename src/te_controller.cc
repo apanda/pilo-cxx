@@ -12,9 +12,11 @@ namespace PILO {
             std::cout << "Max load = " << _maxLoad << std::endl;
     }
 
-    TeController::flowtable_db TeController::compute_paths() {
+    std::pair<Controller::flowtable_db, Controller::deleted_entries> TeController::compute_paths() {
         igraph_vector_t path;
         flowtable_db diffs;
+        deleted_entries diffs_negative;
+        flowtable_db new_table;
         igraph_t workingCopy;
         std::unordered_map<std::pair<int, int>, int,
             boost::hash<std::pair<int, int>>> linkUtilization;
@@ -80,6 +82,7 @@ namespace PILO {
                                         }
                                     }
                                     assert(_links.find(link) != _links.end());
+                                    new_table[sw][psig] = link;
                                     auto rule = _flowDb.at(sw).find(psig);
                                     if (rule == _flowDb.at(sw).end() ||
                                         rule->second != link) {
@@ -112,6 +115,7 @@ namespace PILO {
                                     link = h1 + "-" + v0;
                                 }
                                 assert(_links.find(link) != _links.end());
+                                new_table[sw][psig] = link;
                                 auto rule = _flowDb.at(sw).find(psig);
                                 if (rule == _flowDb.at(sw).end() ||
                                     rule->second != link) {
@@ -126,7 +130,19 @@ namespace PILO {
         }
         igraph_destroy(&workingCopy);
         std::cout << _name << " Done computing " << std::endl;
-        return diffs;
+        for (auto swtable : _flowDb) {
+            auto sw = swtable.first;
+            auto table = swtable.second;
+            for (auto match_action : table) {
+                auto sig = match_action.first;
+                if (new_table.find(sw) == new_table.end() ||
+                    new_table.at(sw).find(sig) == new_table.at(sw).end()) {
+                    // OK, remove this signature
+                    diffs_negative[sw].emplace(sig);
+                }
+            }
+        }
+        return std::make_pair(diffs, diffs_negative);
     }
 
 }

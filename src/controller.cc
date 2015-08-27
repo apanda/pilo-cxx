@@ -113,18 +113,30 @@ namespace PILO {
         _log.merge_logs(packet);
     }
 
-    void Controller::apply_patch(flowtable_db& diff) {
+    void Controller::apply_patch(std::pair<flowtable_db, deleted_entries>& patch) {
+        flowtable_db diff;
+        deleted_entries remove;
+        std::tie(diff, remove) = patch;
         size_t rule_updates = 0;
         for (auto part : diff) {
             auto dest = part.first;
             auto patch = part.second;
             size_t patch_size = patch.size();
+
+            // Add the size of negation
+            if (remove.find(dest) != remove.end()) {
+                patch_size += remove.at(dest).size();
+            }
+
             rule_updates += patch_size;
             //std::cout << _context.get_time() << " " << _name << " sending a patch to " << dest << std::endl;
             // Each rule is header + link to go out
             size_t packet_size = Packet::HEADER + patch_size * (64 + Packet::HEADER);
             auto update = Packet::make_packet(_name, dest, Packet::CHANGE_RULES, packet_size);
             update->data.table.swap(patch);
+            if (remove.find(dest) != remove.end()) {
+                update->data.deleteEntries.swap(remove.at(dest));
+            }
             flood(std::move(update));
         }
         std::cout << _context.get_time() << "  " << _name << " patch_size " << rule_updates << std::endl;
@@ -286,10 +298,12 @@ namespace PILO {
         //_usedVertices += count;
     }
 
-    Controller::flowtable_db Controller::compute_paths() {
+    std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::compute_paths() {
         igraph_vector_t l;
         igraph_vector_ptr_t p;
-        flowtable_db diffs;
+        flowtable_db new_table;
+        flowtable_db diffs_positive;
+        deleted_entries diffs_negative;
         std::cout << _name << " Beginning computation " << std::endl;
 
         for (int v0_idx = 0; v0_idx < _usedVertices; v0_idx++) {
@@ -301,13 +315,14 @@ namespace PILO {
 
             igraph_vector_ptr_init(&p, 0);
             igraph_vector_init(&l, 0);
-            std::cout << _name <<" Computing shortest paths for " << v0 << std::endl;
+            // Compute all shortest paths starting at v0_idx
             int ret = igraph_get_all_shortest_paths(&_graph, &p, &l, v0_idx, igraph_vss_all(), IGRAPH_ALL);
-            std::cout << _name <<" Done Computing shortest paths for " << v0 << std::endl;
             int base_idx = 0;
 
-            (void)ret; // I like asserts
+            (void)ret; // I like asserts, the compiler does not like unused variables
             assert(ret == 0);
+
+            // How many paths did we find.
             int len = igraph_vector_size(&l);
             //std::cout << v0_idx << " all path size " << igraph_vector_ptr_size(&p) << std::endl;
 
@@ -324,6 +339,7 @@ namespace PILO {
                                 std::string psig = Packet::generate_signature(h0, h1, Packet::DATA);
                                 size_t hash = _hash(psig);
                                 int path_idx = hash % paths;
+
                                 //std::cout << "\t" << bias << " " << paths << " " << path_idx << std::endl;
                                 //std::cout << "\t\t" << igraph_vector_ptr_size(&p) << std::endl;
                                 assert( path_idx + base_idx < igraph_vector_ptr_size(&p));
@@ -344,11 +360,12 @@ namespace PILO {
                                         link = nh + "-" + sw;
                                     }
                                     assert(_links.find(link) != _links.end());
+                                    new_table[sw][psig] = link;
                                     auto rule = _flowDb.at(sw).find(psig);
                                     if (rule == _flowDb.at(sw).end() ||
                                         rule->second != link) {
                                         _flowDb[sw][psig] = link;
-                                        diffs[sw][psig] = link;
+                                        diffs_positive[sw][psig] = link;
                                     }
                                 }
                             }
@@ -368,11 +385,12 @@ namespace PILO {
                                     link = h1 + "-" + v0;
                                 }
                                 assert(_links.find(link) != _links.end());
+                                new_table[sw][psig] = link;
                                 auto rule = _flowDb.at(sw).find(psig);
                                 if (rule == _flowDb.at(sw).end() ||
                                     rule->second != link) {
                                     _flowDb[sw][psig] = link;
-                                    diffs[sw][psig] = link;
+                                    diffs_positive[sw][psig] = link;
                                 }
                             }
                         }
@@ -386,8 +404,20 @@ namespace PILO {
             igraph_vector_destroy(&l);
             std::cout << _name << " Done destroying  vectors and paths for "  << v0 << std::endl;
         }
-        std::cout << _name << " Done computing " << std::endl;
-        return diffs;
+        std::cout << _name << " Done computing new table, now computing negative diffs" << std::endl;
+        for (auto swtable : _flowDb) {
+            auto sw = swtable.first;
+            auto table = swtable.second;
+            for (auto match_action : table) {
+                auto sig = match_action.first;
+                if (new_table.find(sw) == new_table.end() ||
+                    new_table.at(sw).find(sig) == new_table.at(sw).end()) {
+                    // OK, remove this signature
+                    diffs_negative[sw].emplace(sig);
+                }
+            }
+        }
+        return std::make_pair(diffs_positive, diffs_negative);
     }
 
     void Controller::send_switch_info_request() {

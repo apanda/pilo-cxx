@@ -26,6 +26,8 @@ namespace PILO {
 
             void install_flow_table(const Packet::flowtable& table);
 
+            void install_flow_table(const Packet::flowtable& table, const std::unordered_set<std::string>& remove);
+
         private:
             std::unordered_map<std::string, Link::State> _linkState;
             std::unordered_set<uint64_t> _filter;

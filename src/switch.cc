@@ -63,9 +63,16 @@ namespace PILO {
     }
 
     void Switch::install_flow_table(const Packet::flowtable& table) {
-        //std::cout << _context.get_time() << " " << _name << " installing rules" << std::endl;
         for (auto rules : table) {
             _forwardingTable[rules.first] = rules.second;
+        }
+
+    }
+    void Switch::install_flow_table(const Packet::flowtable& table, const std::unordered_set<std::string>& remove) {
+        //std::cout << _context.get_time() << " " << _name << " installing rules" << std::endl;
+        install_flow_table(table);
+        for (auto rule : remove) {
+            _forwardingTable.erase(rule);
         }
     }
 

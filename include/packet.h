@@ -1,6 +1,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "link.h"
 #ifndef __PACKET_H__
@@ -64,6 +65,7 @@ namespace PILO {
                 std::string link;
                 uint64_t version;
                 flowtable table;
+                std::unordered_set<std::string> deleteEntries;
                 std::unordered_map<std::string, Link::State> linkState;
                 std::unordered_map<std::string, uint64_t> linkVersion;
                 std::unordered_map<std::string, std::vector<uint64_t>> gaps;

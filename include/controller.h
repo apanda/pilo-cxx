@@ -7,6 +7,7 @@
 #include <forward_list>
 #include <memory>
 #include <boost/algorithm/string.hpp>
+#include <boost/functional/hash.hpp>
 #include <igraph/igraph.h> // Graph processing (for the masses).
 #ifndef __CONTROLLER_H__
 #define __CONTROLLER_H__
@@ -84,6 +85,7 @@ namespace PILO {
             typedef std::unordered_map<std::string, igraph_integer_t> vertex_map;
             typedef std::unordered_map<igraph_integer_t, std::string> inv_vertex_map;
             typedef std::unordered_map<std::string, Packet::flowtable> flowtable_db;
+            typedef std::unordered_map<std::string, std::unordered_set<std::string>> deleted_entries;
 
             // igraph is not C++, and allocates memory. So be nice and remove things.
             virtual ~Controller() {
@@ -100,7 +102,7 @@ namespace PILO {
             virtual bool remove_link(const std::string& link, uint64_t version);
 
             // Compute paths, return a diff of what needs to be fixed.
-            virtual flowtable_db compute_paths ();
+            virtual std::pair<flowtable_db, deleted_entries> compute_paths ();
 
             // Respond to various control messages.
             virtual void handle_link_up(const std::shared_ptr<Packet>& packet);
@@ -110,7 +112,7 @@ namespace PILO {
             virtual void handle_gossip_rep(const std::shared_ptr<Packet>& packet);
 
             // Given a diff, packetize things and send rule updates to switches.
-            virtual void apply_patch(flowtable_db& diff);
+            virtual void apply_patch(std::pair<flowtable_db, deleted_entries>& diff);
 
             // Periodically query switches for information.
             virtual void send_switch_info_request();
