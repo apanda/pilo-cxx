@@ -264,12 +264,20 @@ namespace PILO {
 
                 checked += 1;
                 std::string sig = Packet::generate_signature(h1.first, h2.first, Packet::DATA);
+                std::unordered_set<std::string> visited;
                 for (auto begin_link : h1.second->_links) {
                     std::string link = begin_link.first;
                     auto current = h1.second;
+                    visited.emplace(current->_name);
                     while (current.get() != h2.second.get()) {
                         if (_links.at(link)->is_up()) {
                             current = _links.at(link)->get_other(current);
+
+                            if (visited.find(current->_name) != visited.end()) {
+                                std::cout << "WARNING: LOOP DETECTED" << std::endl;
+                                break;
+                            }
+                            visited.emplace(current->_name);
                             auto as_switch = std::dynamic_pointer_cast<Switch>(current);
                             if (!as_switch) {
                                 // Maybe we have reached the end, maybe not. But this is not a switch.
@@ -342,14 +350,21 @@ namespace PILO {
 
     void Simulation::dump_link_usage() const {
         auto controller = std::begin(_controllers)->second;
+        size_t checked = 0;
+        size_t tight = 0;
         for (auto sw_pair : _switches) {
             auto name = sw_pair.first;
             auto sw = sw_pair.second;
             for (auto l_pair : sw->_linkStats) {
                 if (!controller->is_host_link(l_pair.first)) {
                     std::cout << "\t\t" << name << " " << l_pair.first << " "  << l_pair.second << std::endl;
+                    checked++;
+                    if (l_pair.second >= _flowLimit) {
+                        tight++;
+                    }
                 }
             }
         }
+        std::cout << ">>>> Checked " << checked << " Tight " << tight << std::endl;
     }
 }

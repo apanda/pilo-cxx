@@ -1,8 +1,10 @@
+#include <iostream>
 #include "context.h"
 namespace PILO {
     Context::Context(Time end):
         _time(0.0),
-        _end(end) {
+        _end(end),
+        _lastMajor(0) {
     }
 
     Time Context::get_time() const {
@@ -22,6 +24,10 @@ namespace PILO {
         std::tie(time, task) = _queue.top();
         _queue.pop();
         _time = time;
+        if ((uint64_t)(_time) / 100 > _lastMajor) {
+            std::cout << "Now executing for " << _time << std::endl;
+            _lastMajor = (uint64_t)(_time) / 100;
+        }
         task(_time);
         return (!_queue.empty() && _time <= _end);
     }

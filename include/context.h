@@ -57,6 +57,8 @@ namespace PILO {
 
             // End time.
             Time _end;
+
+            uint64_t _lastMajor;
     };
 }
 #endif

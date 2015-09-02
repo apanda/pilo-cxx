@@ -23,6 +23,8 @@ namespace PILO {
         std::cout << _name << " Beginning computation " << std::endl;
         igraph_copy(&workingCopy, &_graph);
         igraph_to_directed(&workingCopy, IGRAPH_TO_DIRECTED_MUTUAL);
+        uint64_t admissionControlRejected = 0;
+        uint64_t admissionControlTried = 0;
 
         for (auto link : _links) {
             std::string v1, v2;
@@ -52,6 +54,8 @@ namespace PILO {
                                 std::string psig = Packet::generate_signature(h0, h1, Packet::DATA);
                                 bool recomputed = false;
                                 int path_len = igraph_vector_size(&path);
+
+                                admissionControlTried++;
 
                                 for (int k = 0; k < path_len; k++) {
                                     std::string sw = _ivertices.at(VECTOR(path)[k]);
@@ -93,6 +97,7 @@ namespace PILO {
                                         igraph_get_shortest_path(&workingCopy, &path, NULL, v0_idx, v1_idx, IGRAPH_OUT);
                                         if (path_len > 0 && igraph_vector_size(&path)) {
                                             std::cout << "Warning: Removal made paths infeasible" << std::endl;
+                                            admissionControlRejected++;
                                         }
                                         path_len = igraph_vector_size(&path);
                                     }
@@ -129,7 +134,7 @@ namespace PILO {
             }
         }
         igraph_destroy(&workingCopy);
-        std::cout << _name << " Done computing " << std::endl;
+        std::cout << _name << " Done computing " << admissionControlTried << "   " << admissionControlRejected << std::endl;
         for (auto swtable : _flowDb) {
             auto sw = swtable.first;
             auto table = swtable.second;
