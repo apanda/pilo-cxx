@@ -15,6 +15,7 @@ namespace PILO {
             std::string _name;
             Distribution<Time>* _latency;
             const BPS _bandwidth;
+            Distribution<bool>* _drop;
         public:
             enum State {
                 DOWN = 0,
@@ -25,7 +26,8 @@ namespace PILO {
                  Distribution<Time>* latency, // In seconds?
                  BPS bandwidth, // In bps
                  std::shared_ptr<Node> a, // Endpoint
-                 std::shared_ptr<Node> b);
+                 std::shared_ptr<Node> b,
+                 Distribution<bool>* drop);
 
             // Send a packet.
             void send(Node* sender, std::shared_ptr<Packet> packet);

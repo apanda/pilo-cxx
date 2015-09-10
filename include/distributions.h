@@ -3,6 +3,8 @@
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/exponential_distribution.hpp>
 #include <boost/random/uniform_int.hpp>
+#include <boost/random/bernoulli_distribution.hpp>
+
 #ifndef __DISTRIBUTIONS_H__
 #define __DISTRIBUTIONS_H__
 // Random distributions of various kinds.
@@ -40,6 +42,8 @@ namespace PILO {
                     return NULL;
                 }
             }
+
+            virtual ~Distribution<T>() {}
     };
 
 
@@ -52,7 +56,12 @@ namespace PILO {
                 _value = node[MEAN_KEY].as<T>() / CONV_FACTOR;
             }
 
+            ConstantDistribution(const T val) {
+                _value = val;
+            }
+
             virtual T next() {
+                std::cout << "Next " << std::endl;
                 return _value;
             }
     };
@@ -111,6 +120,22 @@ namespace PILO {
 
             virtual int32_t next() {
                 // Not for time like things, no conversion
+                return _var();
+            }
+    };
+
+    class BernoulliDistribution : public Distribution<bool> {
+        private:
+            boost::bernoulli_distribution<> _distro;
+            boost::variate_generator<boost::mt19937&,
+                  boost::bernoulli_distribution<>> _var;
+        public:
+            BernoulliDistribution(const double p, boost::mt19937& rng) :
+                _distro(p),
+                _var(rng, _distro) {
+            }
+
+            virtual bool next() {
                 return _var();
             }
     };

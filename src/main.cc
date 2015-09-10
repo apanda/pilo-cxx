@@ -34,7 +34,9 @@ int main(int argc, char* argv[]) {
     bool crit_link = false;
     std::string fail_link;
     int flow_limit = 1;
-
+    double drop_probablity = 0.0;
+    std::unique_ptr<PILO::Distribution<bool>> drop_distribution;
+    //
     // Argument parsing
     po::options_description args("PILO simulation");
     args.add_options()
@@ -64,7 +66,9 @@ int main(int argc, char* argv[]) {
         ("fail", po::value<std::string>(&fail_link),
             "Fail a specific link")
         ("l,limit", po::value<int>(&flow_limit)->default_value(100),
-            "TE (L)imit");
+            "TE (L)imit")
+        ("drop,d", po::value<double>(&drop_probablity)->default_value(0.0), 
+            "Drop messages with some probability");
     po::variables_map vmap;
     po::store(po::command_line_parser(argc, argv).options(args).run(), vmap);
     po::notify(vmap);
@@ -83,11 +87,19 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    boost::mt19937 rng(seed);
+    
+    if (vmap.count("drop")) {
+        drop_distribution = std::make_unique<PILO::BernoulliDistribution>(1.0 - drop_probablity, rng);
+    } else {
+        drop_distribution = std::make_unique<PILO::ConstantDistribution<bool>>(false);
+    }
+
     one_link = vmap.count("one");
     crit_link = vmap.count("critlinks");
 
     std::cout << "Simulation setting limit to " << flow_limit << std::endl;
-    PILO::Simulation simulation(seed, configuration, topology, end_time, refresh, gossip, bw, flow_limit);
+    PILO::Simulation simulation(seed, configuration, topology, end_time, refresh, gossip, bw, flow_limit, std::move(drop_distribution));
     simulation.set_all_links_up_silent();
     simulation.install_all_routes();
     std::cout << "Pre run check = " << simulation.check_routes() << std::endl;

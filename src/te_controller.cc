@@ -57,6 +57,10 @@ namespace PILO {
 
                                 admissionControlTried++;
 
+                                if (path_len == 0) {
+                                    admissionControlRejected++;
+                                }
+
                                 for (int k = 0; k < path_len; k++) {
                                     std::string sw = _ivertices.at(VECTOR(path)[k]);
                                     std::string nh;
@@ -97,7 +101,6 @@ namespace PILO {
                                         igraph_get_shortest_path(&workingCopy, &path, NULL, v0_idx, v1_idx, IGRAPH_OUT);
                                         if (path_len > 0 && igraph_vector_size(&path)) {
                                             std::cout << "Warning: Removal made paths infeasible" << std::endl;
-                                            admissionControlRejected++;
                                         }
                                         path_len = igraph_vector_size(&path);
                                     }

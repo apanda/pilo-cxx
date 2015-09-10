@@ -299,12 +299,16 @@ namespace PILO {
     }
 
     std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::compute_paths() {
-        igraph_vector_t l;
-        igraph_vector_ptr_t p;
-        flowtable_db new_table;
-        flowtable_db diffs_positive;
+        igraph_vector_t path;
+        flowtable_db diffs;
         deleted_entries diffs_negative;
+        flowtable_db new_table;
+        igraph_t workingCopy;
         std::cout << _name << " Beginning computation " << std::endl;
+        igraph_copy(&workingCopy, &_graph);
+        igraph_to_directed(&workingCopy, IGRAPH_TO_DIRECTED_MUTUAL);
+        uint64_t admissionControlRejected = 0;
+        uint64_t admissionControlTried = 0;
 
         for (int v0_idx = 0; v0_idx < _usedVertices; v0_idx++) {
             std::string v0 = _ivertices.at(v0_idx);
@@ -313,48 +317,33 @@ namespace PILO {
                 continue;
             }
 
-            igraph_vector_ptr_init(&p, 0);
-            igraph_vector_init(&l, 0);
-            // Compute all shortest paths starting at v0_idx
-            int ret = igraph_get_all_shortest_paths(&_graph, &p, &l, v0_idx, igraph_vss_all(), IGRAPH_ALL);
-            int base_idx = 0;
-
-            (void)ret; // I like asserts, the compiler does not like unused variables
-            assert(ret == 0);
-
-            // How many paths did we find.
-            int len = igraph_vector_size(&l);
-            //std::cout << v0_idx << " all path size " << igraph_vector_ptr_size(&p) << std::endl;
-
-            std::cout << _name << " Generating  " << len << " paths from "  << v0 << std::endl;
-            for (int v1_idx = 0; v1_idx < len; v1_idx++) {
+            for (int v1_idx = 0; v1_idx < _usedVertices; v1_idx++) {
                 std::string v1 = _ivertices.at(v1_idx);
-                int paths = VECTOR(l)[v1_idx];
-                //std::cout << v0_idx << "  " << v1_idx << " path size " 
-                          //<< paths << " base_idx " << base_idx << std::endl;
                 if ((!_hostAtSwitch.at(v1).empty())) {
-                    if (v0_idx != v1_idx && paths > 0) {
+                    if (v0_idx != v1_idx) {
+                        igraph_vector_init(&path, 0);
+                        igraph_get_shortest_path(&workingCopy, &path, NULL, v0_idx, v1_idx, IGRAPH_OUT);
                         for (auto h0 : _hostAtSwitch.at(v0)) {
                             for (auto h1 : _hostAtSwitch.at(v1)) {
                                 std::string psig = Packet::generate_signature(h0, h1, Packet::DATA);
-                                size_t hash = _hash(psig);
-                                int path_idx = hash % paths;
+                                int path_len = igraph_vector_size(&path);
 
-                                //std::cout << "\t" << bias << " " << paths << " " << path_idx << std::endl;
-                                //std::cout << "\t\t" << igraph_vector_ptr_size(&p) << std::endl;
-                                assert( path_idx + base_idx < igraph_vector_ptr_size(&p));
-                                igraph_vector_t* path = (igraph_vector_t*)VECTOR(p)[path_idx + base_idx];
-                                int path_len = igraph_vector_size(path);
+                                admissionControlTried++;
+
+                                if (path_len == 0) {
+                                    admissionControlRejected++;
+                                }
 
                                 for (int k = 0; k < path_len; k++) {
-                                    std::string sw = _ivertices.at(VECTOR(*path)[k]);
+                                    std::string sw = _ivertices.at(VECTOR(path)[k]);
                                     std::string nh;
                                     if (k + 1 < path_len) {
-                                        nh = _ivertices.at(VECTOR(*path)[k + 1]);
+                                        nh = _ivertices.at(VECTOR(path)[k + 1]);
                                     } else {
                                         nh = h1;
                                     }
                                     std::string link = sw + "-" + nh;
+
                                     // Cannonicalize
                                     if (_links.find(link) == _links.end()) {
                                         link = nh + "-" + sw;
@@ -365,11 +354,12 @@ namespace PILO {
                                     if (rule == _flowDb.at(sw).end() ||
                                         rule->second != link) {
                                         _flowDb[sw][psig] = link;
-                                        diffs_positive[sw][psig] = link;
+                                        diffs[sw][psig] = link;
                                     }
                                 }
                             }
                         }
+                        igraph_vector_destroy(&path);
                     } else if (v0_idx == v1_idx) {
                         // Set up paths between things connected to the same switch.
                         for (auto h0 : _hostAtSwitch.at(v0)) {
@@ -390,21 +380,16 @@ namespace PILO {
                                 if (rule == _flowDb.at(sw).end() ||
                                     rule->second != link) {
                                     _flowDb[sw][psig] = link;
-                                    diffs_positive[sw][psig] = link;
+                                    diffs[sw][psig] = link;
                                 }
                             }
                         }
                     }
                 }
-                base_idx += paths;
             }
-            std::cout << _name << " Done generating  " << len << " paths from "  << v0 << std::endl;
-
-            igraph_vector_ptr_destroy_all(&p);
-            igraph_vector_destroy(&l);
-            std::cout << _name << " Done destroying  vectors and paths for "  << v0 << std::endl;
         }
-        std::cout << _name << " Done computing new table, now computing negative diffs" << std::endl;
+        igraph_destroy(&workingCopy);
+        std::cout << _name << " Done computing " << admissionControlTried << "   " << admissionControlRejected << std::endl;
         for (auto swtable : _flowDb) {
             auto sw = swtable.first;
             auto table = swtable.second;
@@ -417,7 +402,7 @@ namespace PILO {
                 }
             }
         }
-        return std::make_pair(diffs_positive, diffs_negative);
+        return std::make_pair(diffs, diffs_negative);
     }
 
     void Controller::send_switch_info_request() {

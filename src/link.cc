@@ -10,11 +10,13 @@ namespace PILO {
          Distribution<Time>* latency, // In seconds?
          BPS bandwidth, // In bps
          std::shared_ptr<Node> a, // Endpoint
-         std::shared_ptr<Node> b) :
+         std::shared_ptr<Node> b,
+         Distribution<bool>* drop) :
         _context(context),
         _name(name),
         _latency(latency),
         _bandwidth(bandwidth),
+        _drop(drop),
         _a(std::move(a)),
         _b(std::move(b)),
         _version(0),
@@ -34,6 +36,12 @@ namespace PILO {
         if (_state == DOWN) {
             return;
         }
+
+        if (!(_drop->next())) {
+            std::cout << "VVV dropping" << std::endl;
+            return;
+        }
+
         Time end_delay = ((Time)packet->_size) / (_bandwidth);
         end_delay += _latency->next();
         Time start_time = std::max(_nextSchedulable, _context.get_time());

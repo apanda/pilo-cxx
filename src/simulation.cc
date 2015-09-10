@@ -15,11 +15,12 @@ namespace {
 namespace PILO {
     Simulation::Simulation(const uint32_t seed, const std::string& configuration,
             const std::string& topology, const Time endTime, const Time refresh,
-            const Time gossip, const BPS bw, const int limit) :
+            const Time gossip, const BPS bw, const int limit, std::unique_ptr<Distribution<bool>>&& drop) :
         _context(endTime),
         _flowLimit(limit),
         _seed(seed),
         _rng(_seed),
+        _dropRng(std::move(drop)),
         _configuration(YAML::LoadFile(configuration)),
         _topology(YAML::LoadFile(topology)),
         _latency(Distribution<PILO::Time>::get_distribution(_configuration["data_link_latency"], _rng)),
@@ -36,7 +37,6 @@ namespace PILO {
         _linkRng(0, _links.size() - 1, _rng),
         _nodeRng(0, _nodes.size() - 1, _rng),
         _stopped(false) {
-
         // Do not print igraph warnings
         igraph_set_warning_handler(igraph_warning_handler_ignore);
         std::cout << "PILO simulation set limit = " << _flowLimit << "    " << limit << std::endl;
@@ -100,7 +100,7 @@ namespace PILO {
             boost::split(parts, link_str, boost::is_any_of("-"));
             linkMap.emplace(std::make_pair(link_str,
                         std::make_shared<Link>(_context, link_str,
-                            _latency, bw, _nodes.at(parts[0]), _nodes.at(parts[1]))));
+                            _latency, bw, _nodes.at(parts[0]), _nodes.at(parts[1]), _dropRng.get())));
             if (_switches.find(parts[0]) != _switches.end() &&
                 _switches.find(parts[1]) != _switches.end()) {
                 _switchLinks.emplace(link_str);
