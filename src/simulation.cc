@@ -1,6 +1,7 @@
 #include "simulation.h"
 namespace {
     const std::string LINKS_KEY = "links";
+    const std::string HLAT_LINKS_KEY = "high_latency_links";
     const std::string FAIL_KEY = "fail_links";
     const std::string CRIT_KEY = "crit_links";
     const std::string RUNFILE_KEY = "runfile";
@@ -23,6 +24,9 @@ namespace PILO {
         _configuration(YAML::LoadFile(configuration)),
         _topology(YAML::LoadFile(topology)),
         _latency(Distribution<PILO::Time>::get_distribution(_configuration["data_link_latency"], _rng)),
+        _hlatency(Distribution<PILO::Time>::get_distribution(_configuration["data_link_hlatency"] ? 
+							    _configuration["data_link_hlatency"] :
+							    _configuration["data_link_latency"], _rng)),
         _vmap(),
         _ivmap(),
         _nsmap(),
@@ -58,7 +62,8 @@ namespace PILO {
             if (node_str == LINKS_KEY ||
                 node_str == FAIL_KEY ||
                 node_str == RUNFILE_KEY ||
-                node_str == CRIT_KEY) {
+                node_str == CRIT_KEY ||
+                node_str == HLAT_LINKS_KEY) {
                 continue; // Not a node we want
             }
             std::string type_str = node.second[TYPE_KEY].as<std::string>();
@@ -91,21 +96,35 @@ namespace PILO {
         return nodeMap;
     }
 
+    std::pair<std::string, std::shared_ptr<Link>> 
+    	    Simulation::populate_link(const std::string& link,
+				   BPS bw,
+				   Distribution<Time>* latency) {
+	    std::vector<std::string> parts;
+	    boost::split(parts, link, boost::is_any_of("-"));
+	    if (_switches.find(parts[0]) != _switches.end() &&
+		_switches.find(parts[1]) != _switches.end()) {
+		_switchLinks.emplace(link);
+	    }
+	    return std::make_pair(link,
+			std::make_shared<Link>(_context, link,
+			latency, bw, _nodes.at(parts[0]), _nodes.at(parts[1])));
+    }
+
     Simulation::link_map Simulation::populate_links(BPS bw) {
         link_map linkMap;
         assert(_latency);
         for (auto link : _topology[LINKS_KEY]) {
             std::string link_str = link.as<std::string>();
-            std::vector<std::string> parts;
-            boost::split(parts, link_str, boost::is_any_of("-"));
-            linkMap.emplace(std::make_pair(link_str,
-                        std::make_shared<Link>(_context, link_str,
-                            _latency, bw, _nodes.at(parts[0]), _nodes.at(parts[1]))));
-            if (_switches.find(parts[0]) != _switches.end() &&
-                _switches.find(parts[1]) != _switches.end()) {
-                _switchLinks.emplace(link_str);
-            }
+            linkMap.emplace(populate_link(link_str, bw, _latency));
         }
+
+        if (_topology[HLAT_LINKS_KEY]) {
+        	for (auto link : _topology[HLAT_LINKS_KEY]) {
+		    std::string link_str = link.as<std::string>();
+		    linkMap.emplace(populate_link(link_str, bw, _hlatency));
+		}
+	}
         return linkMap;
     }
 

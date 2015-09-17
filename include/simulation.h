@@ -110,6 +110,10 @@ namespace PILO {
 
             link_map populate_links(BPS bw);
 
+            std::pair<std::string, std::shared_ptr<Link>> populate_link(const std::string& link,
+            		       BPS bw,
+            		       Distribution<Time>* latency);
+
             int  _flowLimit;
             uint32_t _seed;
             boost::mt19937 _rng;
@@ -120,6 +124,7 @@ namespace PILO {
             const YAML::Node _topology;
 
             Distribution<PILO::Time> *_latency;
+            Distribution<PILO::Time> *_hlatency;
             Controller::vertex_map _vmap;
             Controller::inv_vertex_map _ivmap;
             node_switch_map _nsmap;
