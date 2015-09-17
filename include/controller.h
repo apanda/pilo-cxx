@@ -65,7 +65,8 @@ namespace PILO {
             Controller(Context& context,
                  const std::string& name,
                  const Time referesh,
-                 const Time gossip);
+                 const Time gossip,
+                 Distribution<bool>* drop);
 
             virtual void receive(std::shared_ptr<Packet> packet, Link* link);
 
@@ -125,6 +126,7 @@ namespace PILO {
             inline bool add_host_link(const std::string&);
             inline bool remove_host_link(const std::string&);
             inline std::pair<std::string, std::string> split_parts(const std::string&);
+            Distribution<bool>* _drop;
             std::unordered_set<std::string> _controllers;
             std::unordered_set<std::string> _switches;
             std::unordered_set<std::string> _nodes;

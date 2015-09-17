@@ -6,8 +6,8 @@
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 namespace PILO {
-    TeController::TeController(Context& context, const std::string& name, const Time refresh, const Time gossip, const int max_load):
-        Controller(context, name, refresh, gossip),
+    TeController::TeController(Context& context, const std::string& name, const Time refresh, const Time gossip, const int max_load, Distribution<bool>* drop):
+        Controller(context, name, refresh, gossip, drop),
         _maxLoad (max_load) {
             std::cout << "Max load = " << _maxLoad << std::endl;
     }

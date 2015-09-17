@@ -15,12 +15,14 @@ namespace {
 namespace PILO {
     Simulation::Simulation(const uint32_t seed, const std::string& configuration,
             const std::string& topology, const Time endTime, const Time refresh,
-            const Time gossip, const BPS bw, const int limit, std::unique_ptr<Distribution<bool>>&& drop) :
+            const Time gossip, const BPS bw, const int limit, std::unique_ptr<Distribution<bool>>&& drop,
+            std::unique_ptr<Distribution<bool>>&& cdrop) :
         _context(endTime),
         _flowLimit(limit),
         _seed(seed),
         _rng(_seed),
         _dropRng(std::move(drop)),
+        _cdropRng(std::move(cdrop)),
         _configuration(YAML::LoadFile(configuration)),
         _topology(YAML::LoadFile(topology)),
         _latency(Distribution<PILO::Time>::get_distribution(_configuration["data_link_latency"], _rng)),
@@ -72,12 +74,12 @@ namespace PILO {
                 count++;
             } else if (type_str == TE_CONTROLLER_TYPE) {
                 std::cout << "PILO simulation set limit = " << _flowLimit << std::endl;
-                auto c = std::make_shared<TeController>(_context, node_str, refresh, gossip, _flowLimit);
+                auto c = std::make_shared<TeController>(_context, node_str, refresh, gossip, _flowLimit, _cdropRng.get());
                 std::cout << "TE Controller " << node_str << std::endl;
                 nodeMap.emplace(std::make_pair(node_str, c));
                 _controllers.emplace(std::make_pair(node_str, c));
             } else if (type_str == CONTROLLER_TYPE) {
-                auto c = std::make_shared<Controller>(_context, node_str, refresh, gossip);
+                auto c = std::make_shared<Controller>(_context, node_str, refresh, gossip, _cdropRng.get());
                 std::cout << "Controller " << node_str << std::endl;
                 nodeMap.emplace(std::make_pair(node_str, c));
                 _controllers.emplace(std::make_pair(node_str, c));

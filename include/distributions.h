@@ -61,7 +61,6 @@ namespace PILO {
             }
 
             virtual T next() {
-                std::cout << "Next " << std::endl;
                 return _value;
             }
     };

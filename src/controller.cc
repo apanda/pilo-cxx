@@ -6,8 +6,9 @@
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 namespace PILO {
-    Controller::Controller(Context& context, const std::string& name, const Time refresh, const Time gossip):
+    Controller::Controller(Context& context, const std::string& name, const Time refresh, const Time gossip, Distribution<bool>* drop):
         Node(context, name),
+        _drop(drop),
         _controllers(),
         _switches(),
         _nodes(),
@@ -33,6 +34,14 @@ namespace PILO {
             return;
         }
         _filter.emplace(packet->_id);
+        
+        // Drop some packets. Dropping here essentially makes sure that this message will
+        // never be delivered to thsi controller. Something similar should happen at high enough
+        // link drop rates, but this is just a way of seeing what happens in this particular case.
+        if (!(_drop->next())) {
+            std::cout << "VVV controller dropping" << std::endl;
+            return;
+        }
         if (packet->_type >= Packet::CONTROL &&
              (packet->_destination == _name ||
               packet->_destination == Packet::WILDCARD)) {

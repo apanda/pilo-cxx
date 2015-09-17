@@ -29,7 +29,8 @@ namespace PILO {
                  const std::string& name,
                  const Time referesh,
                  const Time gossip,
-                 const int max_load);
+                 const int max_load,
+                 Distribution<bool>* drop);
 
             // igraph is not C++, and allocates memory. So be nice and remove things.
             virtual ~TeController() {}

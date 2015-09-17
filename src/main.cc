@@ -35,7 +35,8 @@ int main(int argc, char* argv[]) {
     std::string fail_link;
     int flow_limit = 1;
     double drop_probablity = 0.0;
-    std::unique_ptr<PILO::Distribution<bool>> drop_distribution;
+    std::unique_ptr<PILO::Distribution<bool>> link_drop_distribution;
+    std::unique_ptr<PILO::Distribution<bool>> ctrl_drop_distribution;
     //
     // Argument parsing
     po::options_description args("PILO simulation");
@@ -65,8 +66,9 @@ int main(int argc, char* argv[]) {
         ("critlinks,i", "Only fail switch <--> switch links")
         ("fail", po::value<std::string>(&fail_link),
             "Fail a specific link")
-        ("l,limit", po::value<int>(&flow_limit)->default_value(100),
+        ("limit,l", po::value<int>(&flow_limit)->default_value(100),
             "TE (L)imit")
+        ("cdrop,w", "Drop at controller rather than link")
         ("drop,d", po::value<double>(&drop_probablity)->default_value(0.0), 
             "Drop messages with some probability");
     po::variables_map vmap;
@@ -89,17 +91,26 @@ int main(int argc, char* argv[]) {
 
     boost::mt19937 rng(seed);
     
-    if (vmap.count("drop")) {
-        drop_distribution = std::make_unique<PILO::BernoulliDistribution>(1.0 - drop_probablity, rng);
+    if ((!vmap.count("cdrop")) && vmap.count("drop")) {
+        std::cout << "Link drop enabled, probability " << 1.0 - drop_probablity << std::endl;
+        link_drop_distribution = std::make_unique<PILO::BernoulliDistribution>(1.0 - drop_probablity, rng);
     } else {
-        drop_distribution = std::make_unique<PILO::ConstantDistribution<bool>>(false);
+        link_drop_distribution = std::make_unique<PILO::ConstantDistribution<bool>>(true);
+    }
+
+    if (vmap.count("cdrop") && vmap.count("drop")) {
+        std::cout << "Ctrl drop enabled, probability " << 1.0 - drop_probablity << std::endl;
+        ctrl_drop_distribution = std::make_unique<PILO::BernoulliDistribution>(1.0 - drop_probablity, rng);
+    } else {
+        ctrl_drop_distribution = std::make_unique<PILO::ConstantDistribution<bool>>(true);
     }
 
     one_link = vmap.count("one");
     crit_link = vmap.count("critlinks");
 
     std::cout << "Simulation setting limit to " << flow_limit << std::endl;
-    PILO::Simulation simulation(seed, configuration, topology, end_time, refresh, gossip, bw, flow_limit, std::move(drop_distribution));
+    PILO::Simulation simulation(seed, configuration, topology, end_time, 
+            refresh, gossip, bw, flow_limit, std::move(link_drop_distribution), std::move(ctrl_drop_distribution));
     simulation.set_all_links_up_silent();
     simulation.install_all_routes();
     std::cout << "Pre run check = " << simulation.check_routes() << std::endl;
@@ -110,7 +121,8 @@ int main(int argc, char* argv[]) {
     for (PILO::Time time = measure; time <= end_time; time+=measure) {
         simulation._context.schedule(time, [&](PILO::Time t) {converged[t] = simulation.check_routes();});
         simulation._context.schedule(time, [&](PILO::Time t) {simulation.dump_link_usage(); 
-                                                              max_load[t] = simulation.max_link_usage();});
+                                                              max_load[t] = simulation.max_link_usage();
+                                                              std::cout << t << " now" << std::endl;});
     }
 
     std::cout << "Setting up trace" << std::endl;
