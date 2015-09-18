@@ -28,6 +28,7 @@ namespace PILO {
         public:
             // Get the next value from this distribution.
             virtual T next() = 0;
+            virtual T mean() = 0;
 
             // Convert a YAML node into a distribution.
             static Distribution<T>* get_distribution(const YAML::Node& node, boost::mt19937& rng) {
@@ -63,6 +64,10 @@ namespace PILO {
             virtual T next() {
                 return _value;
             }
+
+            virtual T mean() {
+                return _value;
+            }
     };
 
     template<typename T>
@@ -80,6 +85,10 @@ namespace PILO {
             virtual T next() {
                 // We treat returns of this type as meaning ms in Python. Convert to S.
                 return _var() / CONV_FACTOR;
+            }
+
+            virtual T mean() {
+                return _distro.mean() / CONV_FACTOR;
             }
     };
 
@@ -104,6 +113,10 @@ namespace PILO {
                 // We treat returns of this type as meaning ms in Python. Convert to S.
                 return _var() / CONV_FACTOR;
             }
+
+            virtual T mean() {
+                return (1.0 / _distro.lambda()) / CONV_FACTOR;
+            }
     };
 
     class UniformIntDistribution : public Distribution<int32_t> {
@@ -121,6 +134,10 @@ namespace PILO {
                 // Not for time like things, no conversion
                 return _var();
             }
+
+            virtual int mean() {
+                return 0;
+            }
     };
 
     class BernoulliDistribution : public Distribution<bool> {
@@ -136,6 +153,10 @@ namespace PILO {
 
             virtual bool next() {
                 return _var();
+            }
+
+            virtual bool mean() {
+                return (_distro.p() > 0.5 ? true : false);
             }
     };
 }

@@ -10,6 +10,7 @@ namespace {
     const std::string HOST_TYPE = "Host";
     const std::string CONTROLLER_TYPE = "LSGossipControl";
     const std::string TE_CONTROLLER_TYPE = "LSTEControl";
+    const std::string COORD_CONTROLLER_TYPE = "CoordinationOracleControl";
     const std::string SWITCH_TYPE = "LinkStateSwitch";
 }
 
@@ -47,12 +48,14 @@ namespace PILO {
         igraph_set_warning_handler(igraph_warning_handler_ignore);
         std::cout << "PILO simulation set limit = " << _flowLimit << "    " << limit << std::endl;
         // Populate controller information
+        Coordinator::GetInstance()->set_context(&_context);
         for (auto controller : _controllers) {
             auto cobj = controller.second;
             cobj->add_controllers(_controllers);
             cobj->add_switches(_switches);
             cobj->add_nodes(_others);
         }
+
     }
 
     Simulation::node_map Simulation::populate_nodes(const Time refresh, const Time gossip) {
@@ -85,6 +88,15 @@ namespace PILO {
                 _controllers.emplace(std::make_pair(node_str, c));
             } else if (type_str == CONTROLLER_TYPE) {
                 auto c = std::make_shared<Controller>(_context, node_str, refresh, gossip, _cdropRng.get());
+                std::cout << "Controller " << node_str << std::endl;
+                nodeMap.emplace(std::make_pair(node_str, c));
+                _controllers.emplace(std::make_pair(node_str, c));
+            } else if (type_str == COORD_CONTROLLER_TYPE) {
+                auto c = std::make_shared<CoordinationController>(_context, 
+                        node_str, 
+                        refresh, 
+                        gossip, 
+                        _cdropRng.get());
                 std::cout << "Controller " << node_str << std::endl;
                 nodeMap.emplace(std::make_pair(node_str, c));
                 _controllers.emplace(std::make_pair(node_str, c));
@@ -193,6 +205,10 @@ namespace PILO {
                 controller.second->add_link(link.first, link.second->version());
             }
         }
+        //std::cout << "Controller Diameter " << compute_controller_diameter() << std::endl;
+        auto diameter = compute_controller_diameter();
+        std::cout << "Controller Diameter " << diameter << " rtt = " << diameter * 2.0 << std::endl;
+        Coordinator::GetInstance()->set_rtt(diameter * 2.0);
     }
 
     void Simulation::set_all_links_down_silent() {
@@ -205,6 +221,7 @@ namespace PILO {
                 controller.second->remove_link(link.first, link.second->version());
             }
         }
+        std::cout << "Controller Diameter " << compute_controller_diameter() << std::endl;
     }
 
     void Simulation::set_link_up(const std::string& link) {
@@ -325,6 +342,39 @@ namespace PILO {
         igraph_matrix_destroy(&distances);
 
         return ((double)passed)/((double)checked);
+    }
+
+
+    double Simulation::compute_controller_diameter() {
+        igraph_vector_t path;
+        double longest = 0.0;
+        for (auto c0 : _controllers) {
+            for (auto c1 : _controllers) {
+                if (c0.first == c1.first) {
+                    continue;
+                }
+                igraph_integer_t c0_idx = _vmap.at(_nsmap.at(c0.first));
+                igraph_integer_t c1_idx = _vmap.at(_nsmap.at(c1.first));
+                igraph_vector_init(&path, 0);
+                igraph_get_shortest_path(&_graph, &path, NULL, c0_idx, c1_idx, IGRAPH_OUT);
+                int path_len = igraph_vector_size(&path);
+                assert(path_len > 0);
+                double lat_len = 0.0;
+                for (int k = 0; k < path_len - 1; k++) {
+                    auto l0 = _ivmap.at(VECTOR(path)[k]);
+                    auto l1 = _ivmap.at(VECTOR(path)[k + 1]);
+                    auto link = l0 + "-" + l1;
+                    if (_links.find(link) == _links.end()) {
+                        link = l1 + "-" + l0;
+                    }
+                    lat_len += _links.at(link)->_latency->mean();
+                }
+                if (lat_len > longest) {
+                    longest = lat_len;
+                }
+            }
+        }
+        return longest;
     }
 
     void Simulation::dump_bw_used() const {

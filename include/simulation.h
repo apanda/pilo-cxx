@@ -16,6 +16,7 @@
 #include "switch.h"
 #include "controller.h"
 #include "te_controller.h"
+#include "coord_controller.h"
 
 #ifndef __SIMULATION_H__
 #define __SIMULATION_H__
@@ -106,6 +107,7 @@ namespace PILO {
             void remove_graph_link(const std::shared_ptr<PILO::Link>& link);
             inline bool add_host_graph_link(const std::shared_ptr<PILO::Link>& link);
             inline bool remove_host_graph_link(const std::shared_ptr<PILO::Link>& link);
+            double compute_controller_diameter();
 
             node_map populate_nodes(const Time refresh, const Time gossip);
 
