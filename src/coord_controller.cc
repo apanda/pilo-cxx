@@ -23,8 +23,8 @@ namespace PILO {
             // New information.
             _lastSeen[packet->_destination] = packet->_id;
             // Need to compute the largest controller to controller path
-            Time t = std::max(_context->now() +  _rtt,
-                              _lastTime + _rtt);
+            Time t = std::max(_context->now() +  2. * _rtt,
+                              _lastTime + 2. * _rtt);
             _lastTime = t;
             std::cout << "Coordinator scheduling for " << t << std::endl;
             _context->scheduleAbsolute(t, [this, packet, link](Time) mutable {

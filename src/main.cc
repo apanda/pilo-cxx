@@ -35,6 +35,8 @@ int main(int argc, char* argv[]) {
     std::string fail_link;
     int flow_limit = 1;
     double drop_probablity = 0.0;
+    bool fastforward;
+    bool te;
     std::unique_ptr<PILO::Distribution<bool>> link_drop_distribution;
     std::unique_ptr<PILO::Distribution<bool>> ctrl_drop_distribution;
     //
@@ -70,7 +72,9 @@ int main(int argc, char* argv[]) {
             "TE (L)imit")
         ("cdrop,w", "Drop at controller rather than link")
         ("drop,d", po::value<double>(&drop_probablity)->default_value(0.0), 
-            "Drop messages with some probability");
+            "Drop messages with some probability")
+        ("fastforward", "Fast-forward to when failures happen")
+        ("te", "Measure link utilization for TE");
     po::variables_map vmap;
     po::store(po::command_line_parser(argc, argv).options(args).run(), vmap);
     po::notify(vmap);
@@ -89,17 +93,20 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    fastforward = !(!vmap.count("fastforward"));
+    te = !(!vmap.count("te"));
+
     boost::mt19937 rng(seed);
     
     if ((!vmap.count("cdrop")) && vmap.count("drop")) {
-        std::cout << "Link drop enabled, probability " << 1.0 - drop_probablity << std::endl;
+        std::cout << "Link drop enabled, probability " << drop_probablity << std::endl;
         link_drop_distribution = std::make_unique<PILO::BernoulliDistribution>(1.0 - drop_probablity, rng);
     } else {
         link_drop_distribution = std::make_unique<PILO::ConstantDistribution<bool>>(true);
     }
 
     if (vmap.count("cdrop") && vmap.count("drop")) {
-        std::cout << "Ctrl drop enabled, probability " << 1.0 - drop_probablity << std::endl;
+        std::cout << "Ctrl drop enabled, probability " << drop_probablity << std::endl;
         ctrl_drop_distribution = std::make_unique<PILO::BernoulliDistribution>(1.0 - drop_probablity, rng);
     } else {
         ctrl_drop_distribution = std::make_unique<PILO::ConstantDistribution<bool>>(true);
@@ -115,28 +122,19 @@ int main(int argc, char* argv[]) {
     simulation.install_all_routes();
     std::cout << "Pre run check = " << simulation.check_routes() << std::endl;
 
-    //auto link = simulation.random_link();
-    //simulation._context.schedule(11.0, [&](PILO::Time) {simulation.set_link_down(link);});
-
-    for (PILO::Time time = measure; time <= end_time; time+=measure) {
-        simulation._context.schedule(time, [&](PILO::Time t) {converged[t] = simulation.check_routes();});
-        simulation._context.schedule(time, [&](PILO::Time t) {simulation.dump_link_usage(); 
-                                                              max_load[t] = simulation.max_link_usage();
-                                                              std::cout << t << " now" << std::endl;});
-    }
-
     std::cout << "Setting up trace" << std::endl;
 
     // Exponential as a way to get Poisson
     auto mttf_distro = PILO::ExponentialDistribution<PILO::Time>(1.0 / (1000.0 * mttf), simulation.rng());
     auto mttr_distro = PILO::ExponentialDistribution<PILO::Time>(1.0 / (1000.0 * mttr), simulation.rng());
-
+    PILO::Time first_fail = 0;
     PILO::Time last_fail = 0;
     size_t tsize = 0;
     if (vmap.count("fail")) {
         auto link = simulation.get_link(fail_link);
         last_fail += mttf_distro.next();
         std::cout << last_fail << "  " << link->name() << "  down" << std::endl;
+        first_fail = last_fail;
         simulation._context.scheduleAbsolute(last_fail, [&simulation, link](PILO::Time t) {
                             std::cout << simulation._context.now() << "  Setting down " << link->name() << std::endl;
                                 simulation.set_link_down(link);});
@@ -149,6 +147,9 @@ int main(int argc, char* argv[]) {
                 link = simulation.random_link();
             }
             last_fail += mttf_distro.next();
+            if (first_fail == 0) {
+                first_fail = last_fail;
+            }
             PILO::Time recovery = last_fail + mttr_distro.next();
             std::cout << last_fail << "  " << link->name() << "  down" << std::endl;
             std::cout << recovery << "  " << link->name() << "  up" << std::endl;
@@ -165,12 +166,27 @@ int main(int argc, char* argv[]) {
         } while (last_fail < end_time && !one_link);
         std::cout << "Done setting up trace " << tsize << std::endl;
     }
+    std::list<PILO::Time> samples;
+    for (PILO::Time time = (fastforward ? first_fail : measure); time <= end_time; time+=measure) {
+        simulation._context.schedule(time, [&](PILO::Time t) {converged[t] = simulation.check_routes();
+                                                              samples.push_back(t);});
+        if (te) {
+            simulation._context.schedule(time, [&](PILO::Time t) {simulation.dump_link_usage(); 
+                                                                  max_load[t] = simulation.max_link_usage();
+                                                                  std::cout << t << " now" << std::endl;});
+        }
+    }
 
     simulation.run();
     std::cout << "Fin." << std::endl;
     std::cout << "Convergence " << std::endl;
-    for (PILO::Time time = measure; time <= end_time; time+=measure) {
-        std::cout << " !  " << time << " " << converged.at(time) << " " << max_load.at(time) << std::endl;
+    for (auto time : samples) {
+        
+        std::cout << " !  " <<  std::setprecision(5) << time << " " << std::setprecision(5) <<  converged.at(time);
+        if (te) {
+            std::cout << " " << max_load.at(time);
+        }
+        std::cout << std::endl;
     }
 
     simulation.dump_bw_used();

@@ -338,7 +338,7 @@ namespace PILO {
                 }
             }
         }
-        std::cout << "\tChecked " << checked << "    passed   " << passed << std::endl;
+        std::cout << "\t" << _context.now() <<" Checked " << checked << "    passed   " << passed << std::endl;
         igraph_matrix_destroy(&distances);
 
         return ((double)passed)/((double)checked);

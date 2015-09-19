@@ -24,7 +24,9 @@ namespace PILO {
         // Create an empty graph
         igraph_empty(&_graph, 0, IGRAPH_UNDIRECTED);
         _usedVertices = 0;
+        std::cout << _name << " scheduling refresh for " << _refresh << std::endl;
         _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
+        std::cout << _name << " scheduling gossip for " << _gossip << std::endl;
         _context.schedule(_gossip, [&](double) {this->send_gossip_request();});
     }
 
@@ -45,6 +47,7 @@ namespace PILO {
         if (packet->_type >= Packet::CONTROL &&
              (packet->_destination == _name ||
               packet->_destination == Packet::WILDCARD)) {
+            std::cout <<"$$ " << _context.now() << " " << _name << " Processing packet " << packet->_id << " from " << packet->_source << std::endl; 
             // If the packet is intended for the controller, process it.
             switch (packet->_type) {
                 case Packet::LINK_UP:
@@ -70,7 +73,6 @@ namespace PILO {
     }
 
     void Controller::handle_switch_information(const std::shared_ptr<Packet>& packet) {
-        //std::cout << _context.get_time() << " " << _name << " switch info received " << packet->_source << std::endl;
         bool changes = false;
         for (auto lv : packet->data.linkVersion) {
             if (lv.second > _linkVersion.at(lv.first)) {
@@ -399,29 +401,32 @@ namespace PILO {
         }
         igraph_destroy(&workingCopy);
         std::cout << _name << " Done computing " << admissionControlTried << "   " << admissionControlRejected << std::endl;
-        for (auto swtable : _flowDb) {
-            auto sw = swtable.first;
-            auto table = swtable.second;
-            for (auto match_action : table) {
-                auto sig = match_action.first;
-                if (new_table.find(sw) == new_table.end() ||
-                    new_table.at(sw).find(sig) == new_table.at(sw).end()) {
-                    // OK, remove this signature
-                    diffs_negative[sw].emplace(sig);
-                }
-            }
-        }
+        //for (auto swtable : _flowDb) {
+            //auto sw = swtable.first;
+            //auto table = swtable.second;
+            //for (auto match_action : table) {
+                //auto sig = match_action.first;
+                //if (new_table.find(sw) == new_table.end() ||
+                    //new_table.at(sw).find(sig) == new_table.at(sw).end()) {
+                    //// OK, remove this signature
+                    //diffs_negative[sw].emplace(sig);
+                //}
+            //}
+        //}
         return std::make_pair(diffs, diffs_negative);
     }
 
     void Controller::send_switch_info_request() {
         //std::cout << _context.get_time() << " " << _name << " switch info request starting " << std::endl;
+        std::cout << _context.now() << " " <<  _name << " sending refresh request " << std::endl;
         auto req = Packet::make_packet(_name, Packet::SWITCH_INFORMATION_REQ, Packet::HEADER);
         flood(std::move(req));
+        std::cout << _name << " scheduling refresh for " << _refresh << std::endl;
         _context.schedule(_refresh, [&](double) {this->send_switch_info_request();});
     }
 
     void Controller::send_gossip_request() {
+        std::cout << _name << " " << _context.now() << " sending gossip " << _gossip << std::endl;
         auto req = Packet::make_packet(_name, Packet::GOSSIP, Packet::HEADER);
         _log.compute_gaps(req);
         flood(std::move(req));
