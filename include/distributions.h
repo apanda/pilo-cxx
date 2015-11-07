@@ -9,155 +9,128 @@
 #define __DISTRIBUTIONS_H__
 // Random distributions of various kinds.
 namespace {
-     static const std::string DISTRO      = "distro";
-     static const std::string NORMAL      = "normal";
-     static const std::string CONSTANT    = "constant";
-     static const std::string EXPONENTIAL = "exponential";
-     static const std::string MEAN_KEY    = "mean";
-     static const std::string SIGMA_KEY   = "stdev";
-     static const std::string SHAPE_KEY   = "shape";
-     static const PILO::Time  CONV_FACTOR = 1000.0; // Conversion from Python to s.
+static const std::string DISTRO = "distro";
+static const std::string NORMAL = "normal";
+static const std::string CONSTANT = "constant";
+static const std::string EXPONENTIAL = "exponential";
+static const std::string MEAN_KEY = "mean";
+static const std::string SIGMA_KEY = "stdev";
+static const std::string SHAPE_KEY = "shape";
+static const PILO::Time CONV_FACTOR = 1000.0;  // Conversion from Python to s.
 }
 namespace PILO {
 
-    template <typename T> class ConstantDistribution;
-    template <typename T> class NormalDistribution;
-    template <typename T> class ExponentialDistribution;
-    template <typename T>
-    class Distribution {
-        public:
-            // Get the next value from this distribution.
-            virtual T next() = 0;
-            virtual T mean() = 0;
+template <typename T>
+class ConstantDistribution;
+template <typename T>
+class NormalDistribution;
+template <typename T>
+class ExponentialDistribution;
+template <typename T>
+class Distribution {
+   public:
+    // Get the next value from this distribution.
+    virtual T next() = 0;
+    virtual T mean() = 0;
 
-            // Convert a YAML node into a distribution.
-            static Distribution<T>* get_distribution(const YAML::Node& node, boost::mt19937& rng) {
-                if (node[DISTRO].as<std::string>() == NORMAL) {
-                    return new NormalDistribution<T>(node, rng);
-                } else if (node[DISTRO].as<std::string>() == CONSTANT) {
-                    return new ConstantDistribution<T>(node);
-                } else if (node[DISTRO].as<std::string>() == EXPONENTIAL) {
-                    return new ExponentialDistribution<T>(node, rng);
-                } else {
-                    assert(false);
-                    return NULL;
-                }
-            }
+    // Convert a YAML node into a distribution.
+    static Distribution<T>* get_distribution(const YAML::Node& node, boost::mt19937& rng) {
+        if (node[DISTRO].as<std::string>() == NORMAL) {
+            return new NormalDistribution<T>(node, rng);
+        } else if (node[DISTRO].as<std::string>() == CONSTANT) {
+            return new ConstantDistribution<T>(node);
+        } else if (node[DISTRO].as<std::string>() == EXPONENTIAL) {
+            return new ExponentialDistribution<T>(node, rng);
+        } else {
+            assert(false);
+            return NULL;
+        }
+    }
 
-            virtual ~Distribution<T>() {}
-    };
+    virtual ~Distribution<T>() {}
+};
 
+template <typename T>
+class ConstantDistribution : public Distribution<T> {
+   private:
+    T _value;
 
-    template<typename T>
-    class ConstantDistribution : public Distribution<T> {
-        private:
-            T _value;
-        public:
-            ConstantDistribution(const YAML::Node& node) {
-                _value = node[MEAN_KEY].as<T>() / CONV_FACTOR;
-            }
+   public:
+    ConstantDistribution(const YAML::Node& node) { _value = node[MEAN_KEY].as<T>() / CONV_FACTOR; }
 
-            ConstantDistribution(const T val) {
-                _value = val;
-            }
+    ConstantDistribution(const T val) { _value = val; }
 
-            virtual T next() {
-                return _value;
-            }
+    virtual T next() { return _value; }
 
-            virtual T mean() {
-                return _value;
-            }
-    };
+    virtual T mean() { return _value; }
+};
 
-    template<typename T>
-    class NormalDistribution : public Distribution<T> {
-        private:
-            boost::normal_distribution<T> _distro;
-            boost::variate_generator<boost::mt19937&,
-                                           boost::normal_distribution<T>> _var;
-        public:
-            NormalDistribution(const YAML::Node& node, boost::mt19937& rng) :
-                _distro(node[MEAN_KEY].as<T>(), node[SIGMA_KEY].as<T>()),
-                _var(rng, _distro) {
-            }
+template <typename T>
+class NormalDistribution : public Distribution<T> {
+   private:
+    boost::normal_distribution<T> _distro;
+    boost::variate_generator<boost::mt19937&, boost::normal_distribution<T>> _var;
 
-            virtual T next() {
-                // We treat returns of this type as meaning ms in Python. Convert to S.
-                return _var() / CONV_FACTOR;
-            }
+   public:
+    NormalDistribution(const YAML::Node& node, boost::mt19937& rng)
+        : _distro(node[MEAN_KEY].as<T>(), node[SIGMA_KEY].as<T>()), _var(rng, _distro) {}
 
-            virtual T mean() {
-                return _distro.mean() / CONV_FACTOR;
-            }
-    };
+    virtual T next() {
+        // We treat returns of this type as meaning ms in Python. Convert to S.
+        return _var() / CONV_FACTOR;
+    }
 
-    template<typename T>
-    class ExponentialDistribution : public Distribution<T> {
-        private:
-            boost::exponential_distribution<T> _distro;
-            boost::variate_generator<boost::mt19937&,
-                                           boost::exponential_distribution<T>> _var;
-        public:
-            ExponentialDistribution(const YAML::Node& node, boost::mt19937& rng) :
-                _distro(node[SHAPE_KEY].as<T>()),
-                _var(rng, _distro) {
-            }
+    virtual T mean() { return _distro.mean() / CONV_FACTOR; }
+};
 
-            ExponentialDistribution(const T shape, boost::mt19937& rng) :
-                _distro(shape),
-                _var(rng, _distro) {
-            }
+template <typename T>
+class ExponentialDistribution : public Distribution<T> {
+   private:
+    boost::exponential_distribution<T> _distro;
+    boost::variate_generator<boost::mt19937&, boost::exponential_distribution<T>> _var;
 
-            virtual T next() {
-                // We treat returns of this type as meaning ms in Python. Convert to S.
-                return _var() / CONV_FACTOR;
-            }
+   public:
+    ExponentialDistribution(const YAML::Node& node, boost::mt19937& rng)
+        : _distro(node[SHAPE_KEY].as<T>()), _var(rng, _distro) {}
 
-            virtual T mean() {
-                return (1.0 / _distro.lambda()) / CONV_FACTOR;
-            }
-    };
+    ExponentialDistribution(const T shape, boost::mt19937& rng) : _distro(shape), _var(rng, _distro) {}
 
-    class UniformIntDistribution : public Distribution<int32_t> {
-        private:
-            boost::uniform_smallint<int32_t> _distro;
-            boost::variate_generator<boost::mt19937&,
-                    boost::uniform_smallint<int32_t>> _var;
-        public:
-            UniformIntDistribution(const int32_t min, const int32_t max, boost::mt19937& rng) :
-                _distro(min, max),
-                _var(rng, _distro) {
-            }
+    virtual T next() {
+        // We treat returns of this type as meaning ms in Python. Convert to S.
+        return _var() / CONV_FACTOR;
+    }
 
-            virtual int32_t next() {
-                // Not for time like things, no conversion
-                return _var();
-            }
+    virtual T mean() { return (1.0 / _distro.lambda()) / CONV_FACTOR; }
+};
 
-            virtual int mean() {
-                return 0;
-            }
-    };
+class UniformIntDistribution : public Distribution<int32_t> {
+   private:
+    boost::uniform_smallint<int32_t> _distro;
+    boost::variate_generator<boost::mt19937&, boost::uniform_smallint<int32_t>> _var;
 
-    class BernoulliDistribution : public Distribution<bool> {
-        private:
-            boost::bernoulli_distribution<> _distro;
-            boost::variate_generator<boost::mt19937&,
-                  boost::bernoulli_distribution<>> _var;
-        public:
-            BernoulliDistribution(const double p, boost::mt19937& rng) :
-                _distro(p),
-                _var(rng, _distro) {
-            }
+   public:
+    UniformIntDistribution(const int32_t min, const int32_t max, boost::mt19937& rng)
+        : _distro(min, max), _var(rng, _distro) {}
 
-            virtual bool next() {
-                return _var();
-            }
+    virtual int32_t next() {
+        // Not for time like things, no conversion
+        return _var();
+    }
 
-            virtual bool mean() {
-                return (_distro.p() > 0.5 ? true : false);
-            }
-    };
+    virtual int mean() { return 0; }
+};
+
+class BernoulliDistribution : public Distribution<bool> {
+   private:
+    boost::bernoulli_distribution<> _distro;
+    boost::variate_generator<boost::mt19937&, boost::bernoulli_distribution<>> _var;
+
+   public:
+    BernoulliDistribution(const double p, boost::mt19937& rng) : _distro(p), _var(rng, _distro) {}
+
+    virtual bool next() { return _var(); }
+
+    virtual bool mean() { return (_distro.p() > 0.5 ? true : false); }
+};
 }
 #endif

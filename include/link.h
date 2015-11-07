@@ -5,66 +5,57 @@
 #ifndef __LINK_H__
 #define __LINK_H__
 namespace PILO {
-    class Node;
-    class Packet;
-    /// This is equivalent to bandwidth link in the Python version.
-    class Link {
-        friend class Simulation;
-        private:
-            Context& _context;
-            std::string _name;
-            Distribution<Time>* _latency;
-            const BPS _bandwidth;
-            Distribution<bool>* _drop;
-        public:
-            enum State {
-                DOWN = 0,
-                UP
-            };
-            Link(Context& context,
-                 const std::string& name,
-                 Distribution<Time>* latency, // In seconds?
-                 BPS bandwidth, // In bps
-                 std::shared_ptr<Node> a, // Endpoint
-                 std::shared_ptr<Node> b,
-                 Distribution<bool>* drop);
+class Node;
+class Packet;
+/// This is equivalent to bandwidth link in the Python version.
+class Link {
+    friend class Simulation;
 
-            // Send a packet.
-            void send(Node* sender, std::shared_ptr<Packet> packet);
+   private:
+    Context& _context;
+    std::string _name;
+    Distribution<Time>* _latency;
+    const BPS _bandwidth;
+    Distribution<bool>* _drop;
 
-            inline bool is_up() const { return _state == UP; }
+   public:
+    enum State { DOWN = 0, UP };
+    Link(Context& context, const std::string& name,
+         Distribution<Time>* latency,  // In seconds?
+         BPS bandwidth,                // In bps
+         std::shared_ptr<Node> a,      // Endpoint
+         std::shared_ptr<Node> b, Distribution<bool>* drop);
 
-            inline std::shared_ptr<Node> get_other(std::shared_ptr<Node> n) const  {
-                return (n.get() == _a.get() ? _b : _a); }
+    // Send a packet.
+    void send(Node* sender, std::shared_ptr<Packet> packet);
 
-            inline const std::string& name() const {
-                return _name;
-            }
+    inline bool is_up() const { return _state == UP; }
 
-            inline uint64_t version() const {
-                return _version;
-            }
+    inline std::shared_ptr<Node> get_other(std::shared_ptr<Node> n) const { return (n.get() == _a.get() ? _b : _a); }
 
-            std::shared_ptr<Node> _a;
-            std::shared_ptr<Node> _b;
+    inline const std::string& name() const { return _name; }
 
-        private:
+    inline uint64_t version() const { return _version; }
 
-            void set_up();
+    std::shared_ptr<Node> _a;
+    std::shared_ptr<Node> _b;
 
-            void set_down();
+   private:
+    void set_up();
 
-            // Silently set links up and down. This is mostly used by the simulation to set
-            // things up.
-            void silent_set_up();
+    void set_down();
 
-            void silent_set_down();
+    // Silently set links up and down. This is mostly used by the simulation to set
+    // things up.
+    void silent_set_up();
 
-            uint64_t _version;
-            Time _nextSchedulable;
-            State _state;
-            size_t _totalBits;
-            std::unordered_map<int32_t, size_t> _bitByType;
-    };
+    void silent_set_down();
+
+    uint64_t _version;
+    Time _nextSchedulable;
+    State _state;
+    size_t _totalBits;
+    std::unordered_map<int32_t, size_t> _bitByType;
+};
 }
 #endif

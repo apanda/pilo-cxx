@@ -6,40 +6,41 @@
 #ifndef __NODE_H__
 #define __NODE_H__
 namespace PILO {
-    class Link;
-    /// A base node, also an end host.
-    class Node {
-        friend class Simulation;
-        protected:
-            Context& _context;
-        public:
-            Node(Context& context,
-                 const std::string& name);
+class Link;
+/// A base node, also an end host.
+class Node {
+    friend class Simulation;
 
-            virtual void receive(std::shared_ptr<Packet> packet, Link* link);
+   protected:
+    Context& _context;
 
-            virtual void notify_link_existence(Link* link);
+   public:
+    Node(Context& context, const std::string& name);
 
-            virtual void notify_link_up(Link* link) {
-                //std::cout << _context.get_time() << " Link up " << link->name() << std::endl;
-            }
+    virtual void receive(std::shared_ptr<Packet> packet, Link* link);
 
-            virtual void notify_link_down(Link* link) {
-                //std::cout << _context.get_time() << " Link down " << link->name() << std::endl;
-            }
+    virtual void notify_link_existence(Link* link);
 
-            virtual void silent_link_up(Link*) {}
+    virtual void notify_link_up(Link* link) {
+        // std::cout << _context.get_time() << " Link up " << link->name() << std::endl;
+    }
 
-            virtual void silent_link_down(Link*) {}
+    virtual void notify_link_down(Link* link) {
+        // std::cout << _context.get_time() << " Link down " << link->name() << std::endl;
+    }
 
-            void flood(std::shared_ptr<Packet> packet);
+    virtual void silent_link_up(Link*) {}
 
-            void flood(std::shared_ptr<Packet> packet, const std::string& l);
+    virtual void silent_link_down(Link*) {}
 
-            const std::string _name;
+    void flood(std::shared_ptr<Packet> packet);
 
-        protected:
-            std::unordered_map<std::string, Link*> _links;
-    };
+    void flood(std::shared_ptr<Packet> packet, const std::string& l);
+
+    const std::string _name;
+
+   protected:
+    std::unordered_map<std::string, Link*> _links;
+};
 }
 #endif

@@ -7,7 +7,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/random.hpp>
 #include <yaml-cpp/yaml.h>
-#include <igraph/igraph.h> // Graph processing
+#include <igraph/igraph.h>  // Graph processing
 #include "context.h"
 #include "link.h"
 #include "node.h"
@@ -22,128 +22,120 @@
 #define __SIMULATION_H__
 namespace PILO {
 
-    // The simulation itself. Where all the sausage is made.
-    class Simulation {
-        public:
-            Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology,
-                    const Time endTime, const Time refresh, const Time gossip, const BPS bw, const int limit,
-                    std::unique_ptr<Distribution<bool>>&& drop, std::unique_ptr<Distribution<bool>>&& cdrop);
+// The simulation itself. Where all the sausage is made.
+class Simulation {
+   public:
+    Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology, const Time endTime,
+               const Time refresh, const Time gossip, const BPS bw, const int limit,
+               std::unique_ptr<Distribution<bool>>&& drop, std::unique_ptr<Distribution<bool>>&& cdrop);
 
-            // Run to completion
-            inline void run() {
-                while(!_stopped && _context.next());
-            }
+    // Run to completion
+    inline void run() {
+        while (!_stopped && _context.next())
+            ;
+    }
 
-            // Return a random link
-            inline std::shared_ptr<PILO::Link> random_link() {
-                return std::next(std::begin(_links), _linkRng.next())->second;
-            }
-            
-            // Return a random switch link
-            inline std::shared_ptr<PILO::Link> random_switch_link() {
-                return _links.at(*std::next(std::begin(_switchLinks), _swLinkRng.next()));
-            }
+    // Return a random link
+    inline std::shared_ptr<PILO::Link> random_link() { return std::next(std::begin(_links), _linkRng.next())->second; }
 
-            // Return a random node
-            inline std::shared_ptr<Node> random_node() {
-                auto count =  _nodeRng.next();
-                auto next = std::next(std::begin(_nodes), count);
-                return next->second;
-            }
+    // Return a random switch link
+    inline std::shared_ptr<PILO::Link> random_switch_link() {
+        return _links.at(*std::next(std::begin(_switchLinks), _swLinkRng.next()));
+    }
 
-            inline std::shared_ptr<PILO::Node> get_node(const std::string& id) const {
-                return _nodes.at(id);
-            }
+    // Return a random node
+    inline std::shared_ptr<Node> random_node() {
+        auto count = _nodeRng.next();
+        auto next = std::next(std::begin(_nodes), count);
+        return next->second;
+    }
 
-            inline std::shared_ptr<PILO::Link> get_link(const std::string& id) const {
-                return _links.at(id);
-            }
+    inline std::shared_ptr<PILO::Node> get_node(const std::string& id) const { return _nodes.at(id); }
 
-            void stop() {_stopped = true;}
+    inline std::shared_ptr<PILO::Link> get_link(const std::string& id) const { return _links.at(id); }
 
-            void set_all_links_up();
+    void stop() { _stopped = true; }
 
-            void set_all_links_down();
+    void set_all_links_up();
 
-            void set_all_links_up_silent();
+    void set_all_links_down();
 
-            void set_all_links_down_silent();
+    void set_all_links_up_silent();
 
-            void set_link_up(const std::string&);
-            void set_link_up(const std::shared_ptr<Link>&);
+    void set_all_links_down_silent();
 
-            void set_link_down(const std::string&);
-            void set_link_down(const std::shared_ptr<Link>&);
+    void set_link_up(const std::string&);
+    void set_link_up(const std::shared_ptr<Link>&);
 
-            void compute_all_paths();
+    void set_link_down(const std::string&);
+    void set_link_down(const std::shared_ptr<Link>&);
 
-            void install_all_routes();
+    void compute_all_paths();
 
-            double check_routes() const;
+    void install_all_routes();
 
-            uint32_t max_link_usage() const;
+    double check_routes() const;
 
-            void dump_link_usage() const;
+    uint32_t max_link_usage() const;
 
-            void dump_bw_used() const;
+    void dump_link_usage() const;
 
-            typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;
-            typedef std::unordered_map<std::string, std::shared_ptr<PILO::Link>> link_map;
-            typedef std::unordered_map<std::string, std::shared_ptr<PILO::Switch>> switch_map;
-            typedef std::unordered_map<std::string, std::shared_ptr<PILO::Controller>> controller_map;
-            typedef std::unordered_map<std::string, std::string> node_switch_map;
-            typedef std::unordered_set<std::string> link_set;
+    void dump_bw_used() const;
 
-            virtual ~Simulation() {
-                igraph_destroy(&_graph);
-            }
+    typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;
+    typedef std::unordered_map<std::string, std::shared_ptr<PILO::Link>> link_map;
+    typedef std::unordered_map<std::string, std::shared_ptr<PILO::Switch>> switch_map;
+    typedef std::unordered_map<std::string, std::shared_ptr<PILO::Controller>> controller_map;
+    typedef std::unordered_map<std::string, std::string> node_switch_map;
+    typedef std::unordered_set<std::string> link_set;
 
-            inline boost::mt19937& rng() { return _rng; }
+    virtual ~Simulation() { igraph_destroy(&_graph); }
 
-            PILO::Context _context;
-        private:
+    inline boost::mt19937& rng() { return _rng; }
 
-            void add_graph_link(const std::shared_ptr<PILO::Link>& link);
-            void remove_graph_link(const std::shared_ptr<PILO::Link>& link);
-            inline bool add_host_graph_link(const std::shared_ptr<PILO::Link>& link);
-            inline bool remove_host_graph_link(const std::shared_ptr<PILO::Link>& link);
-            double compute_controller_diameter();
+    PILO::Context _context;
 
-            node_map populate_nodes(const Time refresh, const Time gossip);
+   private:
+    void add_graph_link(const std::shared_ptr<PILO::Link>& link);
+    void remove_graph_link(const std::shared_ptr<PILO::Link>& link);
+    inline bool add_host_graph_link(const std::shared_ptr<PILO::Link>& link);
+    inline bool remove_host_graph_link(const std::shared_ptr<PILO::Link>& link);
+    double compute_controller_diameter();
 
-            link_map populate_links(BPS bw);
+    node_map populate_nodes(const Time refresh, const Time gossip);
 
-            std::pair<std::string, std::shared_ptr<Link>> populate_link(const std::string& link,
-            		       BPS bw,
-            		       Distribution<Time>* latency);
+    link_map populate_links(BPS bw);
 
-            int  _flowLimit;
-            uint32_t _seed;
-            boost::mt19937 _rng;
+    std::pair<std::string, std::shared_ptr<Link>> populate_link(const std::string& link, BPS bw,
+                                                                Distribution<Time>* latency);
 
-            std::unique_ptr<Distribution<bool>> _dropRng;
-            std::unique_ptr<Distribution<bool>> _cdropRng;
+    int _flowLimit;
+    uint32_t _seed;
+    boost::mt19937 _rng;
 
-            igraph_t _graph;
+    std::unique_ptr<Distribution<bool>> _dropRng;
+    std::unique_ptr<Distribution<bool>> _cdropRng;
 
-            const YAML::Node _configuration;
-            const YAML::Node _topology;
+    igraph_t _graph;
 
-            Distribution<PILO::Time> *_latency;
-            Distribution<PILO::Time> *_hlatency;
-            Controller::vertex_map _vmap;
-            Controller::inv_vertex_map _ivmap;
-            node_switch_map _nsmap;
-            switch_map _switches;
-            controller_map _controllers;
-            node_map _others;
-            node_map _nodes;
-            link_set _switchLinks;
-            link_map _links;
-            UniformIntDistribution _swLinkRng;
-            UniformIntDistribution _linkRng;
-            UniformIntDistribution _nodeRng;
-            bool _stopped;
-    };
+    const YAML::Node _configuration;
+    const YAML::Node _topology;
+
+    Distribution<PILO::Time>* _latency;
+    Distribution<PILO::Time>* _hlatency;
+    Controller::vertex_map _vmap;
+    Controller::inv_vertex_map _ivmap;
+    node_switch_map _nsmap;
+    switch_map _switches;
+    controller_map _controllers;
+    node_map _others;
+    node_map _nodes;
+    link_set _switchLinks;
+    link_map _links;
+    UniformIntDistribution _swLinkRng;
+    UniformIntDistribution _linkRng;
+    UniformIntDistribution _nodeRng;
+    bool _stopped;
+};
 }
 #endif
