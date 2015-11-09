@@ -105,12 +105,16 @@ class Controller : public Node {
     virtual void handle_switch_information(const std::shared_ptr<Packet>& packet);
     virtual void handle_gossip(const std::shared_ptr<Packet>& packet);
     virtual void handle_gossip_rep(const std::shared_ptr<Packet>& packet);
+    virtual void handle_routing_resp(const std::shared_ptr<Packet>& packet);
 
     // Given a diff, packetize things and send rule updates to switches.
     virtual void apply_patch(std::pair<flowtable_db, deleted_entries>& diff);
 
     // Periodically query switches for information.
     virtual void send_switch_info_request();
+
+    // Periodically (potentially) query switches for routing table
+    virtual void send_routing_request();
 
     // Periodically gossip with controllers
     virtual void send_gossip_request();

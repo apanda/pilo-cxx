@@ -11,38 +11,33 @@ void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
         // std::cout << _name << " Flooding " << packet->_type << "   " << packet->_destination << std::endl;
         flood(packet, link->name());
         _filter.emplace(packet->_id);
-    } /*else {*/
-    // std::cout << _name << " Not flooding " << packet->_type << "   " << packet->_destination << std::endl;
-    // if (!(packet->_type >= Packet::CONTROL)) {
-    // std::cout << "\t\t because not control" << std::endl;
-    //}
-    // if (!(packet->_destination != _name)) {
-    // std::cout << "\t\t because not control" << std::endl;
-    //}
-    // if (!(_filter.find(packet->_id) == _filter.end())) {
-    // std::cout << "\t\t because filtered" << std::endl;
-    //}
-    /*}*/
+    }
 
     if (packet->_type >= Packet::CONTROL &&
         (packet->_destination == _name || packet->_destination == Packet::WILDCARD)) {
         // If the packet is intended for the switch, process it.
         switch (packet->_type) {
-        case Packet::CHANGE_RULES:
-            install_flow_table(packet->data.table, packet->data.deleteEntries);
-            break;
-        case Packet::SWITCH_INFORMATION_REQ: {
-            auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_INFORMATION,
-                                                Packet::HEADER + (64 + 64 + 8) * _linkState.size());
-            for (auto link : _linkState) {
-                response->data.linkState[link.first] = link.second;
-                response->data.linkVersion[link.first] = _links.at(link.first)->version();
-            }
-            flood(response);
-        } break;
-        default:
-            break;
-            // Do nothing
+            case Packet::CHANGE_RULES:
+                install_flow_table(packet->data.table, packet->data.deleteEntries);
+                break;
+            case Packet::SWITCH_INFORMATION_REQ: {
+                auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_INFORMATION,
+                                                    Packet::HEADER + (64 + 64 + 8) * _linkState.size());
+                for (auto link : _linkState) {
+                    response->data.linkState[link.first] = link.second;
+                    response->data.linkVersion[link.first] = _links.at(link.first)->version();
+                }
+                flood(response);
+            } break;
+            case Packet::SWITCH_TABLE_REQ: {
+                auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_TABLE_RESP,
+                                                    Packet::HEADER + (64 + Packet::HEADER) * _forwardingTable.size());
+                response->data.table.insert(_forwardingTable.cbegin(), _forwardingTable.cend());
+                flood(response);
+            } break;
+            default:
+                break;
+                // Do nothing
         }
     }
 

@@ -27,6 +27,8 @@ Controller::Controller(Context& context, const std::string& name, const Time ref
     _usedVertices = 0;
     std::cout << _name << " scheduling refresh for " << _refresh << std::endl;
     _context.schedule(_refresh, [&](double) { this->send_switch_info_request(); });
+    std::cout << _name << " scheduling routing table refresh for " << _refresh << std::endl;
+    _context.schedule(_refresh, [&](double) { this->send_routing_request(); });
     std::cout << _name << " scheduling gossip for " << _gossip << std::endl;
     _context.schedule(_gossip, [&](double) { this->send_gossip_request(); });
 }
@@ -51,24 +53,29 @@ void Controller::receive(std::shared_ptr<Packet> packet, Link* link) {
                   << packet->_source << std::endl;
         // If the packet is intended for the controller, process it.
         switch (packet->_type) {
-        case Packet::LINK_UP:
-            handle_link_up(packet);
-            break;
-        case Packet::LINK_DOWN:
-            handle_link_down(packet);
-            break;
-        case Packet::SWITCH_INFORMATION:
-            handle_switch_information(packet);
-            break;
-        case Packet::GOSSIP:
-            handle_gossip(packet);
-            break;
-        case Packet::GOSSIP_REP:
-            handle_gossip_rep(packet);
-            break;
-        default:
-            break;
-            // Do nothing
+            case Packet::LINK_UP:
+                handle_link_up(packet);
+                break;
+            case Packet::LINK_DOWN:
+                handle_link_down(packet);
+                break;
+            case Packet::SWITCH_INFORMATION:
+                handle_switch_information(packet);
+                break;
+            case Packet::GOSSIP:
+                handle_gossip(packet);
+                break;
+            case Packet::GOSSIP_REP:
+                handle_gossip_rep(packet);
+                break;
+            case Packet::SWITCH_TABLE_RESP:
+                handle_routing_resp(packet);
+                break;
+            default:
+                std::cout << _context.now() << " " << _name << " received unknown packet type " << packet->_type
+                          << std::endl;
+                break;
+                // Do nothing
         }
     }
 }
@@ -89,6 +96,13 @@ void Controller::handle_switch_information(const std::shared_ptr<Packet>& packet
         auto patch = compute_paths();
         apply_patch(patch);
     }
+}
+
+void Controller::handle_routing_resp(const std::shared_ptr<Packet>& packet) {
+    auto swtch = packet->_source;
+    _flowDb[swtch].swap(packet->data.table);
+    auto patch = compute_paths();
+    apply_patch(patch);
 }
 
 void Controller::handle_link_up(const std::shared_ptr<Packet>& packet) {
@@ -232,7 +246,6 @@ bool Controller::add_link(const std::string& link, uint64_t version) {
 
 bool Controller::remove_link(const std::string& link, uint64_t version) {
     if (version <= _linkVersion.at(link)) {
-        // std::cout << _context.get_time() << "  " << _name << " rejected due to version " << std::endl;
         return false;
     }
 
@@ -261,13 +274,7 @@ void Controller::add_controllers(controller_map controllers) {
     for (auto controller : controllers) {
         _controllers.emplace(controller.first);
         _nodes.emplace(controller.first);
-        // igraph_integer_t idx = count + _usedVertices;
-        //_vertices[controller.first] = idx;
-        //_ivertices[idx] = controller.first;
-        // count++;
     }
-    // igraph_add_vertices(&_graph, count, NULL);
-    //_usedVertices += count;
 }
 
 void Controller::add_switches(switch_map switches) {
@@ -290,13 +297,7 @@ void Controller::add_nodes(node_map nodes) {
     // int count = 0;
     for (auto node : nodes) {
         _nodes.emplace(node.first);
-        // igraph_integer_t idx = count + _usedVertices;
-        //_vertices[node.first] = idx;
-        //_ivertices[idx] = node.first;
-        // count++;
     }
-    // igraph_add_vertices(&_graph, count, NULL);
-    //_usedVertices += count;
 }
 
 std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::compute_paths() {
@@ -402,6 +403,14 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::com
     //}
     //}
     return std::make_pair(diffs, diffs_negative);
+}
+
+void Controller::send_routing_request() {
+    std::cout << _context.now() << " " << _name << " sending routing request " << std::endl;
+    auto req = Packet::make_packet(_name, Packet::SWITCH_TABLE_REQ, Packet::HEADER);
+    flood(std::move(req));
+    std::cout << _name << " scheduling routing request for " << _refresh << std::endl;
+    _context.schedule(_refresh, [&](double) { this->send_routing_request(); });
 }
 
 void Controller::send_switch_info_request() {

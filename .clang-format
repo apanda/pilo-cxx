@@ -5,3 +5,5 @@ IndentWidth: 4
 AllowShortIfStatementsOnASingleLine: false
 IndentCaseLabels: false
 ColumnLimit: 120
+IndentCaseLabels: true
+
