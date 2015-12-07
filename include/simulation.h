@@ -50,6 +50,10 @@ class Simulation {
         return next->second;
     }
 
+    inline std::shared_ptr<PILO::Link> random_controller_link() {
+        return _links.at(*std::next(std::begin(_controllerLinks), _cLinkRng.next()));
+    }
+
     inline std::shared_ptr<PILO::Node> get_node(const std::string& id) const { return _nodes.at(id); }
 
     inline std::shared_ptr<PILO::Link> get_link(const std::string& id) const { return _links.at(id); }
@@ -63,6 +67,10 @@ class Simulation {
     void set_all_links_up_silent();
 
     void set_all_links_down_silent();
+
+    void set_all_controller_links_down();
+
+    void set_all_controller_links_down(const std::shared_ptr<PILO::Link>& ex);
 
     void set_link_up(const std::string&);
     void set_link_up(const std::shared_ptr<Link>&);
@@ -131,7 +139,9 @@ class Simulation {
     node_map _others;
     node_map _nodes;
     link_set _switchLinks;
+    link_set _controllerLinks;
     link_map _links;
+    UniformIntDistribution _cLinkRng;
     UniformIntDistribution _swLinkRng;
     UniformIntDistribution _linkRng;
     UniformIntDistribution _nodeRng;

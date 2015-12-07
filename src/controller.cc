@@ -49,7 +49,7 @@ void Controller::receive(std::shared_ptr<Packet> packet, Link* link) {
     }
     if (packet->_type >= Packet::CONTROL &&
         (packet->_destination == _name || packet->_destination == Packet::WILDCARD)) {
-        std::cout << "$$ " << _context.now() << " " << _name << " Processing packet " << packet->_id << " from "
+        std::cout << _context.now() << " " << _name << " Processing packet " << packet->_id << " from "
                   << packet->_source << std::endl;
         // If the packet is intended for the controller, process it.
         switch (packet->_type) {
