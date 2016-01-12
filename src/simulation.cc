@@ -15,7 +15,7 @@ const std::string SWITCH_TYPE = "LinkStateSwitch";
 }
 
 namespace PILO {
-Simulation::Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology,
+Simulation::Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology, bool version,
                        const Time endTime, const Time refresh, const Time gossip, const BPS bw, const int limit,
                        std::unique_ptr<Distribution<bool>>&& drop, std::unique_ptr<Distribution<bool>>&& cdrop)
     : _context(endTime),
@@ -37,12 +37,14 @@ Simulation::Simulation(const uint32_t seed, const std::string& configuration, co
       _switches(),
       _controllers(),
       _others(),
-      _nodes(std::move(populate_nodes(refresh, gossip))),
+      _nodes(std::move(populate_nodes(refresh, gossip, version))),
       _switchLinks(),
       _controllerLinks(),
+      _swControllerLinks(),
       _links(std::move(populate_links(bw))),
       _cLinkRng(0, _controllerLinks.size() - 1, _rng),
       _swLinkRng(0, _switchLinks.size() - 1, _rng),
+      _swCLinkRng(0, _swControllerLinks.size() - 1, _rng),
       _linkRng(0, _links.size() - 1, _rng),
       _nodeRng(0, _nodes.size() - 1, _rng),
       _stopped(false) {
@@ -59,7 +61,7 @@ Simulation::Simulation(const uint32_t seed, const std::string& configuration, co
     }
 }
 
-Simulation::node_map Simulation::populate_nodes(const Time refresh, const Time gossip) {
+Simulation::node_map Simulation::populate_nodes(const Time refresh, const Time gossip, const bool version) {
     igraph_empty(&_graph, 0, IGRAPH_UNDIRECTED);
     node_map nodeMap;
     igraph_integer_t count = 0;
@@ -72,7 +74,7 @@ Simulation::node_map Simulation::populate_nodes(const Time refresh, const Time g
         std::string type_str = node.second[TYPE_KEY].as<std::string>();
 
         if (type_str == SWITCH_TYPE) {
-            auto sw = std::make_shared<Switch>(_context, node_str);
+            auto sw = std::make_shared<Switch>(_context, node_str, version);
             nodeMap.emplace(std::make_pair(node_str, sw));
             _switches.emplace(std::make_pair(node_str, sw));
             _vmap.emplace(std::make_pair(node_str, count));
@@ -110,9 +112,11 @@ std::pair<std::string, std::shared_ptr<Link>> Simulation::populate_link(const st
     boost::split(parts, link, boost::is_any_of("-"));
     if (_switches.find(parts[0]) != _switches.end() && _switches.find(parts[1]) != _switches.end()) {
         _switchLinks.emplace(link);
+        _swControllerLinks.emplace(link);
     } else if ((_controllers.find(parts[0]) != _controllers.end()) ||
                (_controllers.find(parts[1]) != _controllers.end())) {
         _controllerLinks.emplace(link);
+        _swControllerLinks.emplace(link);
     }
     return std::make_pair(link, std::make_shared<Link>(_context, link, latency, bw, _nodes.at(parts[0]),
                                                        _nodes.at(parts[1]), _dropRng.get()));
@@ -273,6 +277,12 @@ void Simulation::install_all_routes() {
         total += sz;
         auto sw = _switches.at(diff.first);
         sw->install_flow_table(diff.second);
+        // Update controller version
+        if (sz > 0) {
+            for (auto c : _controllers) {
+                c.second->_flow_version[diff.first]++;
+            }
+        }
     }
     std::cout << "Rule sizes: min " << min << " max " << max << " count " << count << " total " << total << std::endl;
 }

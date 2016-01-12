@@ -29,9 +29,12 @@ void Context::schedule(Time delta, std::function<void(Time)> task) {
 }
 
 void Context::scheduleAbsolute(Time time, std::function<void(Time)> task) {
-    assert(time >= _time);
+    //assert(time >= _time);
     if (time >= _time) {
         _queue.emplace(std::make_tuple(time, task));
+    } else {
+        // OK let us just run it.
+        _queue.emplace(std::make_tuple(_time, task));
     }
 }
 }

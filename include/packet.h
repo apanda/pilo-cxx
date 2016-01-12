@@ -79,6 +79,7 @@ class Packet {
         _sig = generate_signature(_source, _destination, _type);
         _id = pid;
         pid++;
+        data.version = 0;
 #if 0
                     std::cout << "packet_obj " << _id << " created " << std::endl;
 #endif

@@ -25,8 +25,8 @@ namespace PILO {
 // The simulation itself. Where all the sausage is made.
 class Simulation {
    public:
-    Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology, const Time endTime,
-               const Time refresh, const Time gossip, const BPS bw, const int limit,
+    Simulation(const uint32_t seed, const std::string& configuration, const std::string& topology, bool version,
+            const Time endTime, const Time refresh, const Time gossip, const BPS bw, const int limit,
                std::unique_ptr<Distribution<bool>>&& drop, std::unique_ptr<Distribution<bool>>&& cdrop);
 
     // Run to completion
@@ -41,6 +41,10 @@ class Simulation {
     // Return a random switch link
     inline std::shared_ptr<PILO::Link> random_switch_link() {
         return _links.at(*std::next(std::begin(_switchLinks), _swLinkRng.next()));
+    }
+
+    inline std::shared_ptr<PILO::Link> random_switch_ctrl_link() {
+        return _links.at(*std::next(std::begin(_swControllerLinks), _swCLinkRng.next()));
     }
 
     // Return a random node
@@ -110,7 +114,7 @@ class Simulation {
     inline bool remove_host_graph_link(const std::shared_ptr<PILO::Link>& link);
     double compute_controller_diameter();
 
-    node_map populate_nodes(const Time refresh, const Time gossip);
+    node_map populate_nodes(const Time refresh, const Time gossip, const bool version);
 
     link_map populate_links(BPS bw);
 
@@ -140,9 +144,12 @@ class Simulation {
     node_map _nodes;
     link_set _switchLinks;
     link_set _controllerLinks;
+    link_set _swControllerLinks;
+    link_set _switchAndControllerLinks;
     link_map _links;
     UniformIntDistribution _cLinkRng;
     UniformIntDistribution _swLinkRng;
+    UniformIntDistribution _swCLinkRng;
     UniformIntDistribution _linkRng;
     UniformIntDistribution _nodeRng;
     bool _stopped;

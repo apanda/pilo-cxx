@@ -10,7 +10,7 @@ class Switch : public Node {
     friend class Simulation;
 
    public:
-    Switch(Context& context, const std::string& name);
+    Switch(Context& context, const std::string& name, const bool version);
 
     virtual void receive(std::shared_ptr<Packet> packet, Link* link);
 
@@ -29,10 +29,13 @@ class Switch : public Node {
     void install_flow_table(const Packet::flowtable& table, const std::unordered_set<std::string>& remove);
 
    private:
+    bool install_flow_table_internal(const Packet::flowtable& table);
     std::unordered_map<std::string, Link::State> _linkState;
     std::unordered_map<std::string, int32_t> _linkStats;  // Assume < 2^31 paths through a link.
     std::unordered_set<uint64_t> _filter;
     Packet::flowtable _forwardingTable;
+    uint64_t _version; // A way to track the number of routing table changes.
+    bool _filter_version;
 };
 }
 #endif

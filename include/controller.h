@@ -82,6 +82,7 @@ class Controller : public Node {
     typedef std::unordered_map<std::string, igraph_integer_t> vertex_map;
     typedef std::unordered_map<igraph_integer_t, std::string> inv_vertex_map;
     typedef std::unordered_map<std::string, Packet::flowtable> flowtable_db;
+    typedef std::unordered_map<std::string, uint64_t> flowtable_version;
     typedef std::unordered_map<std::string, std::unordered_set<std::string>> deleted_entries;
 
     // igraph is not C++, and allocates memory. So be nice and remove things.
@@ -143,6 +144,7 @@ class Controller : public Node {
     Time _gossip;
     Log _log;
     boost::hash<std::string> _hash;
+    flowtable_version _flow_version;
 };
 
 inline bool Controller::is_host_link(const std::string& link) {

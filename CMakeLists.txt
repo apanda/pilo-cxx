@@ -7,7 +7,7 @@ message("CMake module path ${CMAKE_MODULE_PATH}")
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_CXX_FLAGS "-stdlib=libc++")
 endif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -std=c++14")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -std=c++14 -march=native -g3")
 
 find_package(Boost 1.54 COMPONENTS program_options random)
 if (Boost_FOUND)

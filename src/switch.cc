@@ -1,14 +1,13 @@
 #include "switch.h"
 #include "packet.h"
 namespace PILO {
-Switch::Switch(Context& context, const std::string& name)
-    : Node(context, name), _linkState(), _filter(), _forwardingTable() {}
+Switch::Switch(Context& context, const std::string& name, const bool version)
+    : Node(context, name), _linkState(), _filter(), _forwardingTable(), _version(0), _filter_version(version) {}
 
 void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
     // Get the flooding out of the way
     if (packet->_type >= Packet::CONTROL && packet->_destination != _name &&
         _filter.find(packet->_id) == _filter.end()) {
-        // std::cout << _name << " Flooding " << packet->_type << "   " << packet->_destination << std::endl;
         flood(packet, link->name());
         _filter.emplace(packet->_id);
     }
@@ -21,19 +20,30 @@ void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
                 install_flow_table(packet->data.table, packet->data.deleteEntries);
                 break;
             case Packet::SWITCH_INFORMATION_REQ: {
-                auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_INFORMATION,
-                                                    Packet::HEADER + (64 + 64 + 8) * _linkState.size());
-                for (auto link : _linkState) {
-                    response->data.linkState[link.first] = link.second;
-                    response->data.linkVersion[link.first] = _links.at(link.first)->version();
-                }
-                flood(response);
+                    auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_INFORMATION,
+                                                        Packet::HEADER + (64 + 64 + 8) * _linkState.size());
+                    for (auto link : _linkState) {
+                        response->data.linkState[link.first] = link.second;
+                        response->data.linkVersion[link.first] = _links.at(link.first)->version();
+                    }
+                    flood(response);
             } break;
             case Packet::SWITCH_TABLE_REQ: {
-                auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_TABLE_RESP,
-                                                    Packet::HEADER + (64 + Packet::HEADER) * _forwardingTable.size());
-                response->data.table.insert(_forwardingTable.cbegin(), _forwardingTable.cend());
-                flood(response);
+                if  (packet->data.version != _version || (!_filter_version)) { 
+                    //std::cout << _context.now() << " " << _name << " Sending response, versions do not match src = " 
+                        //<< packet->_source << " " << "sversion = " << _version << " rversion = " 
+                        //<< packet->data.version << std::endl;
+                    auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_TABLE_RESP,
+                                                        Packet::HEADER + (64 + Packet::HEADER) * _forwardingTable.size());
+                    response->data.version = _version;
+                    response->data.table.insert(_forwardingTable.cbegin(), _forwardingTable.cend());
+                    flood(response);
+                } else {
+                    // OK version matches, don't send?
+                    //std::cout << _context.now() << " " << _name << " Not sending response, versions match src = " 
+                        //<< packet->_source << " "<< "sversion = " << _version << " rversion = " 
+                        //<< packet->data.version << std::endl;
+                }
             } break;
             default:
                 break;
@@ -50,6 +60,12 @@ void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
 }
 
 void Switch::install_flow_table(const Packet::flowtable& table) {
+    bool changed = install_flow_table_internal(table);
+    if (changed) _version++;
+}
+
+bool Switch::install_flow_table_internal(const Packet::flowtable& table) {
+    bool changed = false;
     for (auto rules : table) {
         if (_forwardingTable.find(rules.first) != _forwardingTable.end()) {
             if (_forwardingTable.at(rules.first) != rules.second) {
@@ -57,22 +73,27 @@ void Switch::install_flow_table(const Packet::flowtable& table) {
                 _linkStats.at(_forwardingTable.at(rules.first))--;
                 _linkStats.at(rules.second)++;
                 _forwardingTable[rules.first] = rules.second;
+                changed = true;
             }
         } else {
             _linkStats.at(rules.second)++;
             _forwardingTable[rules.first] = rules.second;
+            changed = true;
         }
     }
+    return changed;
 }
 void Switch::install_flow_table(const Packet::flowtable& table, const std::unordered_set<std::string>& remove) {
     // std::cout << _context.get_time() << " " << _name << " installing rules" << std::endl;
-    install_flow_table(table);
+    bool changed = install_flow_table_internal(table);
     for (auto rule : remove) {
         if (_forwardingTable.find(rule) != _forwardingTable.end()) {
             _linkStats.at(_forwardingTable.at(rule))--;
             _forwardingTable.erase(rule);
+            changed = true;
         }
     }
+    if (changed) _version++; // Increment to indicate that flow table has changed
 }
 
 void Switch::notify_link_existence(Link* link) {

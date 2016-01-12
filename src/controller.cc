@@ -21,7 +21,8 @@ Controller::Controller(Context& context, const std::string& name, const Time ref
       _filter(),
       _refresh(refresh),
       _gossip(gossip),
-      _log() {
+      _log(),
+      _flow_version() {
     // Create an empty graph
     igraph_empty(&_graph, 0, IGRAPH_UNDIRECTED);
     _usedVertices = 0;
@@ -49,8 +50,8 @@ void Controller::receive(std::shared_ptr<Packet> packet, Link* link) {
     }
     if (packet->_type >= Packet::CONTROL &&
         (packet->_destination == _name || packet->_destination == Packet::WILDCARD)) {
-        std::cout << _context.now() << " " << _name << " Processing packet " << packet->_id << " from "
-                  << packet->_source << std::endl;
+        //std::cout << _context.now() << " " << _name << " Processing packet " << packet->_id << " from "
+                  //<< packet->_source << std::endl;
         // If the packet is intended for the controller, process it.
         switch (packet->_type) {
             case Packet::LINK_UP:
@@ -58,6 +59,9 @@ void Controller::receive(std::shared_ptr<Packet> packet, Link* link) {
                 break;
             case Packet::LINK_DOWN:
                 handle_link_down(packet);
+                break;
+            case Packet::SWITCH_INFORMATION_REQ:
+                // Yeah everyone gets this, we don't care for it
                 break;
             case Packet::SWITCH_INFORMATION:
                 handle_switch_information(packet);
@@ -73,6 +77,7 @@ void Controller::receive(std::shared_ptr<Packet> packet, Link* link) {
                 break;
             default:
                 std::cout << _context.now() << " " << _name << " received unknown packet type " << packet->_type
+                          << " from " << packet->_source << " to " << packet->_destination
                           << std::endl;
                 break;
                 // Do nothing
@@ -100,6 +105,9 @@ void Controller::handle_switch_information(const std::shared_ptr<Packet>& packet
 
 void Controller::handle_routing_resp(const std::shared_ptr<Packet>& packet) {
     auto swtch = packet->_source;
+    if (_flow_version[swtch] != packet->data.version)
+        std::cout << _name << " " << "Updating " << swtch << " version to " << packet->data.version << std::endl;
+    _flow_version[swtch] = packet->data.version;
     _flowDb[swtch].swap(packet->data.table);
     auto patch = compute_paths();
     apply_patch(patch);
@@ -144,6 +152,7 @@ void Controller::apply_patch(std::pair<flowtable_db, deleted_entries>& patch) {
     deleted_entries remove;
     std::tie(diff, remove) = patch;
     size_t rule_updates = 0;
+    bool sent = false;
     for (auto part : diff) {
         auto dest = part.first;
         auto patch = part.second;
@@ -163,9 +172,14 @@ void Controller::apply_patch(std::pair<flowtable_db, deleted_entries>& patch) {
         if (remove.find(dest) != remove.end()) {
             update->data.deleteEntries.swap(remove.at(dest));
         }
-        flood(std::move(update));
+        if (patch_size > 0) {
+            _flow_version[dest] += 1; // Increment version since we are changing something
+            sent = true;
+            flood(std::move(update));
+        }
     }
-    std::cout << _context.get_time() << "  " << _name << " patch_size " << rule_updates << std::endl;
+    if (sent)
+        std::cout << _context.get_time() << "  " << _name << " patch_size " << rule_updates << std::endl;
 }
 
 void Controller::notify_link_existence(Link* link) { Node::notify_link_existence(link); }
@@ -287,6 +301,8 @@ void Controller::add_switches(switch_map switches) {
         igraph_integer_t idx = count + _usedVertices;
         _vertices[sw.first] = idx;
         _ivertices[idx] = sw.first;
+        // Start with version 0
+        _flow_version.emplace(std::make_pair(sw.first, 0));
         count++;
     }
     igraph_add_vertices(&_graph, count, NULL);
@@ -306,7 +322,7 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::com
     deleted_entries diffs_negative;
     flowtable_db new_table;
     igraph_t workingCopy;
-    std::cout << _name << " Beginning computation " << std::endl;
+    //std::cout << _name << " Beginning computation " << std::endl;
     igraph_copy(&workingCopy, &_graph);
     igraph_to_directed(&workingCopy, IGRAPH_TO_DIRECTED_MUTUAL);
     uint64_t admissionControlRejected = 0;
@@ -389,26 +405,17 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::com
         }
     }
     igraph_destroy(&workingCopy);
-    std::cout << _name << " Done computing " << admissionControlTried << "   " << admissionControlRejected << std::endl;
-    // for (auto swtable : _flowDb) {
-    // auto sw = swtable.first;
-    // auto table = swtable.second;
-    // for (auto match_action : table) {
-    // auto sig = match_action.first;
-    // if (new_table.find(sw) == new_table.end() ||
-    // new_table.at(sw).find(sig) == new_table.at(sw).end()) {
-    //// OK, remove this signature
-    // diffs_negative[sw].emplace(sig);
-    //}
-    //}
-    //}
+    //std::cout << _name << " Done computing " << admissionControlTried << "   " << admissionControlRejected << std::endl;
     return std::make_pair(diffs, diffs_negative);
 }
 
 void Controller::send_routing_request() {
     std::cout << _context.now() << " " << _name << " sending routing request " << std::endl;
-    auto req = Packet::make_packet(_name, Packet::SWITCH_TABLE_REQ, Packet::HEADER);
-    flood(std::move(req));
+    for (auto sv : _flow_version) {
+        auto req = Packet::make_packet(_name, sv.first, Packet::SWITCH_TABLE_REQ, Packet::HEADER);
+        req->data.version = sv.second;
+        flood(std::move(req));
+    }
     std::cout << _name << " scheduling routing request for " << _refresh << std::endl;
     _context.schedule(_refresh, [&](double) { this->send_routing_request(); });
 }

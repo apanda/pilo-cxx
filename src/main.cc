@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <list>
+#include <limits>
 #include <unordered_map>
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string.hpp>
@@ -29,6 +30,7 @@ int main(int argc, char* argv[]) {
     PILO::Time mttf;
     PILO::Time mttr;
     PILO::Time gossip;
+    PILO::Time window = 0.0;
     std::unordered_map<PILO::Time, double> converged;
     std::unordered_map<PILO::Time, uint32_t> max_load;
     bool one_link = false;
@@ -40,6 +42,7 @@ int main(int argc, char* argv[]) {
     bool te;
     std::unique_ptr<PILO::Distribution<bool>> link_drop_distribution;
     std::unique_ptr<PILO::Distribution<bool>> ctrl_drop_distribution;
+    bool versioned;
     //
     // Argument parsing
     po::options_description args("PILO simulation");
@@ -55,13 +58,16 @@ int main(int argc, char* argv[]) {
         "mttf,f", po::value<PILO::Time>(&mttf)->default_value(600.0), "Mean time to failure")(
         "mttr,r", po::value<PILO::Time>(&mttr)->default_value(300.0), "Mean time to recovery")(
         "gossip,g", po::value<PILO::Time>(&gossip)->default_value(600.0), "Time between Gossip")(
-        "one,o", "Simulate single link failure")("critlinks,i", "Only fail switch <--> switch links")(
+        "one,o", "Simulate single link failure")
+        ("critlinks,i", "Only fail switch <--> switch links")(
         "fail", po::value<std::string>(&fail_link), "Fail a specific link")(
         "limit,l", po::value<int>(&flow_limit)->default_value(100), "TE (L)imit")(
         "cdrop,w", "Drop at controller rather than link")(
         "drop,d", po::value<double>(&drop_probablity)->default_value(0.0), "Drop messages with some probability")(
         "fastforward", "Fast-forward to when failures happen")("te", "Measure link utilization for TE")
-        ("ctfail", po::value<int>(&interctrl_link)->default_value(0), "Links to fail between control link failures");
+        ("ctfail", po::value<int>(&interctrl_link)->default_value(0), "Links to fail between control link failures")
+        ("versioned,v", "Use version information to reduce the number of flow table messages")
+        ("window",  po::value<PILO::Time>(&window)->default_value(0.0), "Window in which to measure bandwidth");
     po::variables_map vmap;
     po::store(po::command_line_parser(argc, argv).options(args).run(), vmap);
     po::notify(vmap);
@@ -99,11 +105,16 @@ int main(int argc, char* argv[]) {
         ctrl_drop_distribution = std::make_unique<PILO::ConstantDistribution<bool>>(true);
     }
 
+    versioned = (vmap.count("versioned") > 0);
+    if (versioned) {
+        std::cout << "Information versioning enabled" << std::endl;
+    }
+
     one_link = vmap.count("one");
     crit_link = vmap.count("critlinks");
 
     std::cout << "Simulation setting limit to " << flow_limit << std::endl;
-    PILO::Simulation simulation(seed, configuration, topology, end_time, refresh, gossip, bw, flow_limit,
+    PILO::Simulation simulation(seed, configuration, topology, versioned, end_time, refresh, gossip, bw, flow_limit,
                                 std::move(link_drop_distribution), std::move(ctrl_drop_distribution));
     simulation.set_all_links_up_silent();
     simulation.install_all_routes();
@@ -129,52 +140,52 @@ int main(int argc, char* argv[]) {
     } else if (interctrl_link > 0) {
     	std::cout << "Controller failure simulation" << std::endl;
     	auto clink1 = simulation.random_controller_link();
-	auto clink2 = simulation.random_controller_link();
-	while (clink1 == clink2) {
-	    clink2 = simulation.random_controller_link();
-	}
-	first_fail = 1;
-	std::cout << first_fail << " setting down all clinks except " << clink1->name() << std::endl;
-	simulation._context.scheduleAbsolute(first_fail, [&simulation, clink1](PILO::Time t) {
-            std::cout << simulation._context.now() << "  Setting down all controllers except " << clink1->name() << std::endl;
-            simulation.set_all_controller_links_down(clink1);
-	});
+        auto clink2 = simulation.random_controller_link();
+        while (clink1 == clink2) {
+            clink2 = simulation.random_controller_link();
+        }
+        first_fail = 1;
+        std::cout << first_fail << " setting down all clinks except " << clink1->name() << std::endl;
+        simulation._context.scheduleAbsolute(first_fail, [&simulation, clink1](PILO::Time t) {
+                std::cout << simulation._context.now() << "  Setting down all controllers except " << clink1->name() << std::endl;
+                simulation.set_all_controller_links_down(clink1);
+        });
 
-	// Fail and recover some set of links
-	for (int i = 0; i < interctrl_link; i++) {
-            std::shared_ptr<PILO::Link> link;
-            if (crit_link) {
-                link = simulation.random_switch_link();
-            } else {
-                link = simulation.random_link();
-            }
-            last_fail += mttf_distro.next();
-            if (first_fail == 0) {
-                first_fail = last_fail;
-            }
-            PILO::Time recovery = last_fail + mttr_distro.next();
-            std::cout << last_fail << "  " << link->name() << "  down" << std::endl;
-            std::cout << recovery << "  " << link->name() << "  up" << std::endl;
-            simulation._context.scheduleAbsolute(last_fail, [&simulation, link](PILO::Time t) {
-                std::cout << simulation._context.now() << "  Setting down " << link->name() << std::endl;
-                simulation.set_link_down(link);
-            });
-            simulation._context.scheduleAbsolute(recovery, [&simulation, link](PILO::Time t) {
-                std::cout << simulation._context.now() << "  Setting up " << link->name() << std::endl;
-                simulation.set_link_up(link);
-            });
-            tsize++;
-	}
-	last_fail += mttf_distro.next();
-	std::cout << last_fail << " setting down all clinks except " << clink2->name() << std::endl;
-	simulation._context.scheduleAbsolute(last_fail, [&simulation, clink1](PILO::Time t) {
-            std::cout << simulation._context.now() << "  Setting down " << clink1->name() << std::endl;
-            simulation.set_link_down(clink1);
-	});
-	simulation._context.scheduleAbsolute(last_fail, [&simulation, clink2](PILO::Time t) {
-            std::cout << simulation._context.now() << "  Setting up " << clink2->name() << std::endl;
-            simulation.set_link_up(clink2);
-	});
+        // Fail and recover some set of links
+        for (int i = 0; i < interctrl_link; i++) {
+                std::shared_ptr<PILO::Link> link;
+                if (crit_link) {
+                    link = simulation.random_switch_ctrl_link();
+                } else {
+                    link = simulation.random_link();
+                }
+                last_fail += mttf_distro.next();
+                if (first_fail == 0) {
+                    first_fail = last_fail;
+                }
+                PILO::Time recovery = last_fail + mttr_distro.next();
+                std::cout << last_fail << "  " << link->name() << "  down" << std::endl;
+                std::cout << recovery << "  " << link->name() << "  up" << std::endl;
+                simulation._context.scheduleAbsolute(last_fail, [&simulation, link](PILO::Time t) {
+                    std::cout << simulation._context.now() << "  Setting down " << link->name() << std::endl;
+                    simulation.set_link_down(link);
+                });
+                simulation._context.scheduleAbsolute(recovery, [&simulation, link](PILO::Time t) {
+                    std::cout << simulation._context.now() << "  Setting up " << link->name() << std::endl;
+                    simulation.set_link_up(link);
+                });
+                tsize++;
+        }
+        last_fail += mttf_distro.next();
+        std::cout << last_fail << " setting down all clinks except " << clink2->name() << std::endl;
+        simulation._context.scheduleAbsolute(last_fail, [&simulation, clink1](PILO::Time t) {
+                std::cout << simulation._context.now() << "  Setting down " << clink1->name() << std::endl;
+                simulation.set_link_down(clink1);
+        });
+        simulation._context.scheduleAbsolute(last_fail, [&simulation, clink2](PILO::Time t) {
+                std::cout << simulation._context.now() << "  Setting up " << clink2->name() << std::endl;
+                simulation.set_link_up(clink2);
+        });
         do {
             std::shared_ptr<PILO::Link> link;
             if (crit_link) {
@@ -245,6 +256,15 @@ int main(int argc, char* argv[]) {
                 simulation.dump_link_usage();
                 max_load[t] = simulation.max_link_usage();
                 std::cout << t << " now" << std::endl;
+            });
+        }
+    }
+
+    if (window > DBL_EPSILON) {
+        for (PILO::Time time = (fastforward ? first_fail : window); time <= end_time; time += window) {
+            simulation._context.schedule(time, [&](PILO::Time t) {
+                std::cout << t << " bandwidth measure " << std::endl;
+                simulation.dump_bw_used();
             });
         }
     }
