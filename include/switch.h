@@ -35,6 +35,7 @@ class Switch : public Node {
     std::unordered_set<uint64_t> _filter;
     Packet::flowtable _forwardingTable;
     uint64_t _version; // A way to track the number of routing table changes.
+    uint64_t _entries; // Number of routing table entries
     bool _filter_version;
 };
 }

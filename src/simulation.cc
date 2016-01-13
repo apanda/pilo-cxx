@@ -421,6 +421,26 @@ void Simulation::dump_bw_used() const {
     }
 }
 
+void Simulation::dump_table_changes() const {
+    uint64_t overall_changes = 0;
+    uint64_t entries = 0;
+    for (auto sw_pair : _switches) {
+        auto sw = sw_pair.second;
+        overall_changes += sw->_version;
+        entries += sw->_forwardingTable.size();;
+    }
+    std::cout << _context.now() << " rule changes " << overall_changes << std::endl;
+    std::cout << _context.now() << " entries " << entries << std::endl;
+    for (auto c : _controllers) {
+        auto ctrl = c.second;
+        uint64_t entries = 0;
+        for (auto fdb : ctrl->_flowDb) {
+            entries += fdb.second.size();
+        }
+        std::cout << _context.now() << " " << c.first << " thinks there are " << entries << std::endl;
+    }
+}
+
 uint32_t Simulation::max_link_usage() const {
     auto controller = std::begin(_controllers)->second;
     int32_t max = 0;

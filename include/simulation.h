@@ -93,6 +93,8 @@ class Simulation {
     void dump_link_usage() const;
 
     void dump_bw_used() const;
+    
+    void dump_table_changes() const;
 
     typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;
     typedef std::unordered_map<std::string, std::shared_ptr<PILO::Link>> link_map;

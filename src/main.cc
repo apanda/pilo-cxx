@@ -265,6 +265,7 @@ int main(int argc, char* argv[]) {
             simulation._context.schedule(time, [&](PILO::Time t) {
                 std::cout << t << " bandwidth measure " << std::endl;
                 simulation.dump_bw_used();
+                simulation.dump_table_changes();
             });
         }
     }

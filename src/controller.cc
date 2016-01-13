@@ -405,6 +405,17 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::com
         }
     }
     igraph_destroy(&workingCopy);
+    for (auto swtable : _flowDb) {
+        auto sw = swtable.first;
+        auto table = swtable.second;
+        for (auto match_action : table) {
+            auto sig = match_action.first;
+            if (new_table.find(sw) == new_table.end() || new_table.at(sw).find(sig) == new_table.at(sw).end()) {
+                // OK, remove this signature
+                diffs_negative[sw].emplace(sig);
+            }
+        }
+    }
     //std::cout << _name << " Done computing " << admissionControlTried << "   " << admissionControlRejected << std::endl;
     return std::make_pair(diffs, diffs_negative);
 }

@@ -2,7 +2,7 @@
 #include "packet.h"
 namespace PILO {
 Switch::Switch(Context& context, const std::string& name, const bool version)
-    : Node(context, name), _linkState(), _filter(), _forwardingTable(), _version(0), _filter_version(version) {}
+    : Node(context, name), _linkState(), _filter(), _forwardingTable(), _version(0), _entries(0), _filter_version(version) {}
 
 void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
     // Get the flooding out of the way
@@ -30,20 +30,12 @@ void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
             } break;
             case Packet::SWITCH_TABLE_REQ: {
                 if  (packet->data.version != _version || (!_filter_version)) { 
-                    //std::cout << _context.now() << " " << _name << " Sending response, versions do not match src = " 
-                        //<< packet->_source << " " << "sversion = " << _version << " rversion = " 
-                        //<< packet->data.version << std::endl;
                     auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_TABLE_RESP,
                                                         Packet::HEADER + (64 + Packet::HEADER) * _forwardingTable.size());
                     response->data.version = _version;
                     response->data.table.insert(_forwardingTable.cbegin(), _forwardingTable.cend());
                     flood(response);
-                } else {
-                    // OK version matches, don't send?
-                    //std::cout << _context.now() << " " << _name << " Not sending response, versions match src = " 
-                        //<< packet->_source << " "<< "sversion = " << _version << " rversion = " 
-                        //<< packet->data.version << std::endl;
-                }
+                } 
             } break;
             default:
                 break;
@@ -72,6 +64,7 @@ bool Switch::install_flow_table_internal(const Packet::flowtable& table) {
                 // Decrement since we are about to change to some other link
                 _linkStats.at(_forwardingTable.at(rules.first))--;
                 _linkStats.at(rules.second)++;
+                // Number of entries remain unchanged
                 _forwardingTable[rules.first] = rules.second;
                 changed = true;
             }
@@ -79,6 +72,7 @@ bool Switch::install_flow_table_internal(const Packet::flowtable& table) {
             _linkStats.at(rules.second)++;
             _forwardingTable[rules.first] = rules.second;
             changed = true;
+            _entries++;
         }
     }
     return changed;
@@ -90,6 +84,7 @@ void Switch::install_flow_table(const Packet::flowtable& table, const std::unord
         if (_forwardingTable.find(rule) != _forwardingTable.end()) {
             _linkStats.at(_forwardingTable.at(rule))--;
             _forwardingTable.erase(rule);
+            _entries--;
             changed = true;
         }
     }
