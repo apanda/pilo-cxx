@@ -105,7 +105,8 @@ void Controller::handle_switch_information(const std::shared_ptr<Packet>& packet
 
 void Controller::handle_routing_resp(const std::shared_ptr<Packet>& packet) {
     auto swtch = packet->_source;
-    if (_flow_version[swtch] != packet->data.version)
+    auto version = compute_hash(_flowDb.at(swtch));
+    if (version != packet->data.version)
         std::cout << _name << " " << "Updating " << swtch << " version to " << packet->data.version << std::endl;
     _flow_version[swtch] = packet->data.version;
     _flowDb[swtch].swap(packet->data.table);
@@ -123,7 +124,7 @@ void Controller::handle_link_up(const std::shared_ptr<Packet>& packet) {
 }
 
 void Controller::handle_link_down(const std::shared_ptr<Packet>& packet) {
-    // std::cout << _context.get_time() << " " << _name << " responding to link down" << std::endl;
+    //std::cout << _context.get_time() << " " << _name << " responding to link down" << std::endl;
     auto link = packet->data.link;
     if (remove_link(link, packet->data.version)) {
         auto patch = compute_paths();
@@ -231,6 +232,7 @@ inline bool Controller::remove_host_link(const std::string& link) {
 }
 
 bool Controller::add_link(const std::string& link, uint64_t version) {
+    std::cout << _context.now() << " " << _name << " " << link << " up " << std::endl;
     if (_links.find(link) == _links.end()) {
         add_new_link(link, version);
     } else {
@@ -259,6 +261,7 @@ bool Controller::add_link(const std::string& link, uint64_t version) {
 }
 
 bool Controller::remove_link(const std::string& link, uint64_t version) {
+    std::cout << _context.now() << " " << _name << " " << link << " down " << std::endl;
     if (version <= _linkVersion.at(link)) {
         return false;
     }
@@ -325,8 +328,11 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::com
     //std::cout << _name << " Beginning computation " << std::endl;
     igraph_copy(&workingCopy, &_graph);
     igraph_to_directed(&workingCopy, IGRAPH_TO_DIRECTED_MUTUAL);
-    uint64_t admissionControlRejected = 0;
-    uint64_t admissionControlTried = 0;
+
+    for (auto sw: _switches) {
+        new_table.emplace(std::make_pair(sw, Packet::flowtable()));
+        diffs_negative.emplace(std::make_pair(sw, std::unordered_set<std::string>())); 
+    }
 
     for (int v0_idx = 0; v0_idx < _usedVertices; v0_idx++) {
         std::string v0 = _ivertices.at(v0_idx);
@@ -340,17 +346,12 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::com
             if ((!_hostAtSwitch.at(v1).empty())) {
                 if (v0_idx != v1_idx) {
                     igraph_vector_init(&path, 0);
-                    igraph_get_shortest_path(&workingCopy, &path, NULL, v0_idx, v1_idx, IGRAPH_OUT);
+                    igraph_get_shortest_path(&workingCopy, &path, NULL, v0_idx, v1_idx, IGRAPH_ALL);
                     for (auto h0 : _hostAtSwitch.at(v0)) {
                         for (auto h1 : _hostAtSwitch.at(v1)) {
                             std::string psig = Packet::generate_signature(h0, h1, Packet::DATA);
                             int path_len = igraph_vector_size(&path);
 
-                            admissionControlTried++;
-
-                            if (path_len == 0) {
-                                admissionControlRejected++;
-                            }
 
                             for (int k = 0; k < path_len; k++) {
                                 std::string sw = _ivertices.at(VECTOR(path)[k]);
@@ -416,7 +417,7 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> Controller::com
             }
         }
     }
-    //std::cout << _name << " Done computing " << admissionControlTried << "   " << admissionControlRejected << std::endl;
+    _flowDb.swap(new_table); // Update the table
     return std::make_pair(diffs, diffs_negative);
 }
 
@@ -424,7 +425,7 @@ void Controller::send_routing_request() {
     std::cout << _context.now() << " " << _name << " sending routing request " << std::endl;
     for (auto sv : _flow_version) {
         auto req = Packet::make_packet(_name, sv.first, Packet::SWITCH_TABLE_REQ, Packet::HEADER);
-        req->data.version = sv.second;
+        req->data.version = compute_hash(_flowDb.at(sv.first));;
         flood(std::move(req));
     }
     std::cout << _name << " scheduling routing request for " << _refresh << std::endl;
@@ -446,6 +447,16 @@ void Controller::send_gossip_request() {
     _log.compute_gaps(req);
     flood(std::move(req));
     _context.schedule(_gossip, [&](double) { this->send_gossip_request(); });
+}
+
+
+size_t Controller::compute_hash(const Packet::flowtable& f) {
+    size_t h = 0;
+    for (auto e : f) {
+	    boost::hash_combine(h, std::hash<std::string>()(e.first));
+	    boost::hash_combine(h, std::hash<std::string>()(e.second));
+    }
+    return h;
 }
 
 Log::Log() : _log(), _commit(), _marked(), _sizes(), _max() {}

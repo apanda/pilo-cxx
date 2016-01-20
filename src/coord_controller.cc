@@ -18,10 +18,12 @@ void Coordinator::receive(CoordinationController* controller, std::shared_ptr<Pa
     if (_lastSeen[packet->_destination] < packet->_id) {
         // New information.
         _lastSeen[packet->_destination] = packet->_id;
+        if (_lastTime > _context->now()) _lastTime = 0.0;
         // Need to compute the largest controller to controller path
         Time t = std::max(_context->now() + 2. * _rtt, _lastTime + 2. * _rtt);
+        //std::cout << _context->now() << " coordination at " << t << " " << _rtt << std::endl;
         _lastTime = t;
-        std::cout << "Coordinator scheduling for " << t << std::endl;
+        //std::cout << "Coordinator scheduling for " << t << std::endl;
         _context->scheduleAbsolute(t, [this, packet, link](Time) mutable { send_to_controller(packet, link); });
     }
 }

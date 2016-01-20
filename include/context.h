@@ -32,6 +32,8 @@ class Context {
     // Schedule an event to happen at specified time.
     void scheduleAbsolute(Time time, std::function<void(Time)> task);
 
+    void reset();
+
    private:
     // Comparator that ignores the task, so we can use fibonacci heap.
     struct TaskCompare {

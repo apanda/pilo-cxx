@@ -76,6 +76,8 @@ class Controller : public Node {
 
     virtual void silent_link_down(Link*);
 
+    static size_t compute_hash(const Packet::flowtable&);
+
     typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;
     typedef std::unordered_map<std::string, std::shared_ptr<PILO::Switch>> switch_map;
     typedef std::unordered_map<std::string, std::shared_ptr<Controller>> controller_map;
@@ -119,6 +121,7 @@ class Controller : public Node {
 
     // Periodically gossip with controllers
     virtual void send_gossip_request();
+
 
     void add_new_link(const std::string&, uint64_t);
     inline bool is_host_link(const std::string&);

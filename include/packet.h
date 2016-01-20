@@ -1,6 +1,6 @@
 #include <string>
 #include <memory>
-#include <unordered_map>
+#include <map>
 #include <unordered_set>
 #include <vector>
 #include "link.h"
@@ -12,7 +12,7 @@ class Node;
 // Packets.
 class Packet {
    public:
-    typedef std::unordered_map<std::string, std::string> flowtable;
+    typedef std::map<std::string, std::string> flowtable;
 
     // This packet is for all.
     static const std::string WILDCARD;
@@ -64,7 +64,7 @@ class Packet {
     // All the data we would ever possibly need, since I am lazy
     struct {
         std::string link;
-        uint64_t version;
+        size_t version;
         flowtable table;
         std::unordered_set<std::string> deleteEntries;
         std::unordered_map<std::string, Link::State> linkState;

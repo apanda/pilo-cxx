@@ -38,6 +38,12 @@ class CoordinationController : public Controller {
     virtual void receive(std::shared_ptr<Packet> packet, Link* link);
     virtual void receive_coordinator(std::shared_ptr<Packet> packet, Link* link);
 
+    // Periodically (potentially) query switches for routing table. Don't send this for coordinated controllers.
+    virtual void send_routing_request() {}
+
+    // Periodically gossip with controllers. Don't send this for coordinated controllers
+    virtual void send_gossip_request() {}
+
    protected:
     std::shared_ptr<Coordinator> _coordinator;
 };

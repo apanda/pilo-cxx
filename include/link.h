@@ -37,6 +37,8 @@ class Link {
 
     inline uint64_t version() const { return _version; }
 
+    void reset() { _nextSchedulableA = 0.; _nextSchedulableB = 0.; _aQueue = 0; _bQueue = 0; }
+
     std::shared_ptr<Node> _a;
     std::shared_ptr<Node> _b;
 
@@ -52,7 +54,10 @@ class Link {
     void silent_set_down();
 
     uint64_t _version;
-    Time _nextSchedulable;
+    Time _nextSchedulableA;
+    Time _nextSchedulableB;
+    size_t _aQueue;
+    size_t _bQueue;
     State _state;
     size_t _totalBits;
     std::unordered_map<int32_t, size_t> _bitByType;

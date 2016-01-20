@@ -86,7 +86,7 @@ class Simulation {
 
     void install_all_routes();
 
-    double check_routes() const;
+    double check_routes(double& global_distance, double& net_distance, double& difference) const;
 
     uint32_t max_link_usage() const;
 
@@ -95,6 +95,8 @@ class Simulation {
     void dump_bw_used() const;
     
     void dump_table_changes() const;
+
+    void reset_links();
 
     typedef std::unordered_map<std::string, std::shared_ptr<PILO::Node>> node_map;
     typedef std::unordered_map<std::string, std::shared_ptr<PILO::Link>> link_map;
@@ -148,6 +150,7 @@ class Simulation {
     link_set _controllerLinks;
     link_set _swControllerLinks;
     link_set _switchAndControllerLinks;
+    link_set _liveLinks;
     link_map _links;
     UniformIntDistribution _cLinkRng;
     UniformIntDistribution _swLinkRng;

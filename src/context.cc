@@ -17,8 +17,8 @@ bool Context::next() {
     _queue.pop();
     _time = time;
     if ((uint64_t)(_time) / 100 > _lastMajor) {
-        std::cout << "Now executing for " << _time << std::endl;
         _lastMajor = (uint64_t)(_time) / 100;
+        std::cout << "Now executing for " << _time << std::endl;
     }
     task(_time);
     return (!_queue.empty() && _time <= _end);
@@ -37,4 +37,10 @@ void Context::scheduleAbsolute(Time time, std::function<void(Time)> task) {
         _queue.emplace(std::make_tuple(_time, task));
     }
 }
+
+void Context::reset() {
+    _queue.clear();
+    _time = 0.0;
+}
+
 }

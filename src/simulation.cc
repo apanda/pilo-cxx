@@ -41,6 +41,7 @@ Simulation::Simulation(const uint32_t seed, const std::string& configuration, co
       _switchLinks(),
       _controllerLinks(),
       _swControllerLinks(),
+      _liveLinks(),
       _links(std::move(populate_links(bw))),
       _cLinkRng(0, _controllerLinks.size() - 1, _rng),
       _swLinkRng(0, _switchLinks.size() - 1, _rng),
@@ -142,9 +143,11 @@ Simulation::link_map Simulation::populate_links(BPS bw) {
 bool Simulation::add_host_graph_link(const std::shared_ptr<PILO::Link>& link) {
     if (_switches.find(link->_a->_name) == _switches.end()) {
         _nsmap.emplace(std::make_pair(link->_a->_name, link->_b->_name));
+        _liveLinks.emplace(link->name());
         return true;
     } else if (_switches.find(link->_b->_name) == _switches.end()) {
         _nsmap.emplace(std::make_pair(link->_b->_name, link->_a->_name));
+        _liveLinks.emplace(link->name());
         return true;
     }
     return false;
@@ -153,9 +156,11 @@ bool Simulation::add_host_graph_link(const std::shared_ptr<PILO::Link>& link) {
 bool Simulation::remove_host_graph_link(const std::shared_ptr<PILO::Link>& link) {
     if (_switches.find(link->_a->_name) == _switches.end()) {
         _nsmap.erase(link->_a->_name);
+        _liveLinks.erase(link->name());
         return true;
     } else if (_switches.find(link->_b->_name) == _switches.end()) {
         _nsmap.erase(link->_b->_name);
+        _liveLinks.erase(link->name());
         return true;
     }
     return false;
@@ -170,6 +175,7 @@ void Simulation::add_graph_link(const std::shared_ptr<PILO::Link>& link) {
     igraph_get_eid(&_graph, &eid, e0, e1, IGRAPH_UNDIRECTED, 0);
     if (eid == -1) {
         igraph_add_edge(&_graph, e0, e1);
+        _liveLinks.emplace(link->name());
     }
 }
 
@@ -182,6 +188,7 @@ void Simulation::remove_graph_link(const std::shared_ptr<PILO::Link>& link) {
     igraph_get_eid(&_graph, &eid, e0, e1, IGRAPH_UNDIRECTED, 0);
     if (eid != -1) {
         igraph_delete_edges(&_graph, igraph_ess_1(eid));
+        _liveLinks.erase(link->name());
     }
 }
 
@@ -287,14 +294,16 @@ void Simulation::install_all_routes() {
     std::cout << "Rule sizes: min " << min << " max " << max << " count " << count << " total " << total << std::endl;
 }
 
-double Simulation::check_routes() const {
+double Simulation::check_routes(double& global_distance, double& net_distance, double& difference) const {
     uint64_t checked = 0;
     uint64_t passed = 0;
-    // std::cout << _context.get_time() <<
-    //"  Checking \t\t" << " edge count for graph is " << igraph_ecount(&_graph) << std::endl;
     igraph_matrix_t distances;
     igraph_matrix_init(&distances, 1, 1);
     igraph_shortest_paths(&_graph, &distances, igraph_vss_all(), igraph_vss_all(), IGRAPH_ALL);
+    global_distance = 0.0;
+    net_distance = 0.0;
+    difference = 0.0;
+    std::unordered_map<double, int64_t> distance_cdf;
 
     for (auto h1 : _others) {
         for (auto h2 : _others) {
@@ -303,7 +312,6 @@ double Simulation::check_routes() const {
                 std::cout << "\t" << h1.first << "   " << h2.first << "    ";
 #endif
             if (h1.first == h2.first) {
-                // std::cout << "skip (same)" << std::endl;
                 continue;
             }
             // Skip if the underlying topology is disconnected
@@ -313,7 +321,6 @@ double Simulation::check_routes() const {
             igraph_integer_t v0 = _vmap.at(_nsmap.at(h1.first));
             igraph_integer_t v1 = _vmap.at(_nsmap.at(h2.first));
             if (MATRIX(distances, v0, v1) == IGRAPH_INFINITY) {
-                std::cout << "skip (!connected)" << std::endl;
                 continue;
             }
 
@@ -323,10 +330,12 @@ double Simulation::check_routes() const {
             for (auto begin_link : h1.second->_links) {
                 std::string link = begin_link.first;
                 auto current = h1.second;
+                igraph_real_t measured_distance = 0.0;
                 visited.emplace(current->_name);
                 while (current.get() != h2.second.get()) {
                     if (_links.at(link)->is_up()) {
                         current = _links.at(link)->get_other(current);
+                        measured_distance += 1.0;
 
                         if (visited.find(current->_name) != visited.end()) {
                             std::cout << "WARNING: LOOP DETECTED" << std::endl;
@@ -345,15 +354,56 @@ double Simulation::check_routes() const {
                             break;
                         }
                     } else {
+                        // std::cout << "Broken link " << link << std::endl;
                         break;
                     }
                 }
                 if (current.get() == h2.second.get()) {
+                    igraph_real_t distance = MATRIX(distances, v0, v1);
+                    distance += 2.0;  // Tget to switch and back
+                    if (measured_distance >= distance) {
+                        if ((measured_distance - distance) >= difference) {
+                            difference = measured_distance - distance;
+                            net_distance = measured_distance;
+                            global_distance = distance;
+                        }
+                        if (distance_cdf.find(difference) == distance_cdf.end()) {
+                            distance_cdf.emplace(std::make_pair(difference, 1));
+                        } else {
+                            distance_cdf[difference] += 1;
+                        }
+                    } else {
+                        std::cout << "WARNING " << measured_distance << " " << distance << std::endl;
+                    }
                     passed++;
                     break;
                 }
             }
         }
+    }
+    for (auto cdf : distance_cdf) {
+        std::cout << _context.now() << " IDISTANCE " << cdf.first << " " << cdf.second << std::endl;
+    }
+    for (auto c : _controllers) {
+        auto links = &c.second->_existingLinks;
+        int64_t count = 0;
+        std::cout << _context.now() << " CTRL_LINK_DIFF " << c.first;
+        for (auto l : _liveLinks) {
+            if (links->find(l) == links->end()) {
+                std::cout << " " << l;
+                count++;
+            }
+        }
+        std::cout << " " << count << std::endl;
+        count = 0;
+        std::cout << _context.now() << " CTRL_LINK_EXTRA " << c.first;
+        for (auto l : *links) {
+            if (_liveLinks.find(l) == _liveLinks.end()) {
+                std::cout << " " << l;
+                count++;
+            }
+        }
+        std::cout << " " << count << std::endl;
     }
     std::cout << "\t" << _context.now() << " Checked " << checked << "    passed   " << passed << std::endl;
     igraph_matrix_destroy(&distances);
@@ -427,7 +477,8 @@ void Simulation::dump_table_changes() const {
     for (auto sw_pair : _switches) {
         auto sw = sw_pair.second;
         overall_changes += sw->_version;
-        entries += sw->_forwardingTable.size();;
+        entries += sw->_forwardingTable.size();
+        ;
     }
     std::cout << _context.now() << " rule changes " << overall_changes << std::endl;
     std::cout << _context.now() << " entries " << entries << std::endl;
@@ -438,6 +489,39 @@ void Simulation::dump_table_changes() const {
             entries += fdb.second.size();
         }
         std::cout << _context.now() << " " << c.first << " thinks there are " << entries << std::endl;
+    }
+    for (auto c : _controllers) {
+        int64_t differences_s = 0;
+        int64_t differences_c = 0;
+        int64_t differences_h = 0;
+        int64_t differences_by_switch = 0;
+        auto ctrl = c.second;
+        for (auto fdb : ctrl->_flowDb) {
+            bool sw_d = false;
+            auto sw = _switches.at(fdb.first);
+            if (Controller::compute_hash(fdb.second) != Controller::compute_hash(sw->_forwardingTable)) {
+                differences_h++;
+                sw_d = true;
+            }
+            for (auto le : fdb.second) {
+                if (sw->_forwardingTable.find(le.first) == sw->_forwardingTable.end() ||
+                    le.second != sw->_forwardingTable.at(le.first)) {
+                    differences_s++;
+                    sw_d = true;
+                }
+            }
+            for (auto fe : sw->_forwardingTable) {
+                if (fdb.second.find(fe.first) == fdb.second.end()) {
+                    differences_c++;
+                    sw_d = true;
+                }
+            }
+            if (sw_d) {
+                differences_by_switch++;
+            }
+        }
+        std::cout << _context.now() << " " << c.first << " FLOW_DIFF " << differences_s << " " << differences_c << " "
+                  << differences_h << " " << differences_by_switch << std::endl;
     }
 }
 
@@ -473,5 +557,11 @@ void Simulation::dump_link_usage() const {
         }
     }
     std::cout << ">>>> Checked " << checked << " Tight " << tight << std::endl;
+}
+
+void Simulation::reset_links() {
+    for (auto l : _links) {
+        l.second->reset();
+    }
 }
 }

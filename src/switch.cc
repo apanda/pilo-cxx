@@ -1,8 +1,15 @@
 #include "switch.h"
 #include "packet.h"
+#include "controller.h"
 namespace PILO {
 Switch::Switch(Context& context, const std::string& name, const bool version)
-    : Node(context, name), _linkState(), _filter(), _forwardingTable(), _version(0), _entries(0), _filter_version(version) {}
+    : Node(context, name),
+      _linkState(),
+      _filter(),
+      _forwardingTable(),
+      _version(0),
+      _entries(0),
+      _filter_version(version) {}
 
 void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
     // Get the flooding out of the way
@@ -20,22 +27,27 @@ void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
                 install_flow_table(packet->data.table, packet->data.deleteEntries);
                 break;
             case Packet::SWITCH_INFORMATION_REQ: {
-                    auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_INFORMATION,
-                                                        Packet::HEADER + (64 + 64 + 8) * _linkState.size());
-                    for (auto link : _linkState) {
-                        response->data.linkState[link.first] = link.second;
-                        response->data.linkVersion[link.first] = _links.at(link.first)->version();
-                    }
-                    flood(response);
+                auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_INFORMATION,
+                                                    Packet::HEADER + (64 + 64 + 8) * _linkState.size());
+                for (auto link : _linkState) {
+                    response->data.linkState[link.first] = link.second;
+                    response->data.linkVersion[link.first] = _links.at(link.first)->version();
+                }
+                flood(response);
             } break;
             case Packet::SWITCH_TABLE_REQ: {
-                if  (packet->data.version != _version || (!_filter_version)) { 
-                    auto response = Packet::make_packet(_name, packet->_source, Packet::SWITCH_TABLE_RESP,
-                                                        Packet::HEADER + (64 + Packet::HEADER) * _forwardingTable.size());
+                if (!_filter_version || Controller::compute_hash(_forwardingTable) != packet->data.version) {
+                    std::cout << _context.now() << " HASH " << _name << " sending to " << packet->_source << std::endl;
+                    auto response =
+                        Packet::make_packet(_name, packet->_source, Packet::SWITCH_TABLE_RESP,
+                                            Packet::HEADER + (64 + Packet::HEADER) * _forwardingTable.size());
                     response->data.version = _version;
                     response->data.table.insert(_forwardingTable.cbegin(), _forwardingTable.cend());
                     flood(response);
-                } 
+                } else {
+                    std::cout << _context.now() << " HASH " << _name << " hashes match " << packet->_source
+                              << std::endl;
+                }
             } break;
             default:
                 break;
@@ -52,8 +64,10 @@ void Switch::receive(std::shared_ptr<Packet> packet, Link* link) {
 }
 
 void Switch::install_flow_table(const Packet::flowtable& table) {
+    //std::cout << _context.now() << " received ft update" << std::endl;
     bool changed = install_flow_table_internal(table);
-    if (changed) _version++;
+    if (changed)
+        _version++;
 }
 
 bool Switch::install_flow_table_internal(const Packet::flowtable& table) {
@@ -88,7 +102,8 @@ void Switch::install_flow_table(const Packet::flowtable& table, const std::unord
             changed = true;
         }
     }
-    if (changed) _version++; // Increment to indicate that flow table has changed
+    if (changed)
+        _version++;  // Increment to indicate that flow table has changed
 }
 
 void Switch::notify_link_existence(Link* link) {
@@ -100,6 +115,7 @@ void Switch::notify_link_existence(Link* link) {
 void Switch::notify_link_up(Link* link) {
     Node::notify_link_up(link);
     if (_linkState.at(link->name()) == Link::DOWN) {
+        std::cout << _context.now() << " " << _name << " " << link->name() << " set up " << std::endl;
         _linkState[link->name()] = Link::UP;
         auto packet = Packet::make_packet(_name, Packet::LINK_UP, Packet::LINK_UP_SIZE);
         packet->data.link = link->name();
@@ -111,6 +127,7 @@ void Switch::notify_link_up(Link* link) {
 void Switch::notify_link_down(Link* link) {
     Node::notify_link_down(link);
     if (_linkState.at(link->name()) == Link::UP) {
+        std::cout << _context.now() << " " << _name << " " << link->name() << " set down " << std::endl;
         _linkState[link->name()] = Link::DOWN;
         auto packet = Packet::make_packet(_name, Packet::LINK_DOWN, Packet::LINK_DOWN_SIZE);
         packet->data.link = link->name();

@@ -24,6 +24,10 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> TeController::c
     igraph_to_directed(&workingCopy, IGRAPH_TO_DIRECTED_MUTUAL);
     uint64_t admissionControlRejected = 0;
     uint64_t admissionControlTried = 0;
+    for (auto sw: _switches) {
+        new_table.emplace(std::make_pair(sw, Packet::flowtable()));
+        diffs_negative.emplace(std::make_pair(sw, std::unordered_set<std::string>())); 
+    }
 
     for (auto link : _links) {
         std::string v1, v2;
@@ -146,6 +150,7 @@ std::pair<Controller::flowtable_db, Controller::deleted_entries> TeController::c
             }
         }
     }
+    _flowDb.swap(new_table); // Update the table
     return std::make_pair(diffs, diffs_negative);
 }
 }

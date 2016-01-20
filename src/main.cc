@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <iostream>
 #include <iomanip>
 #include <list>
@@ -31,7 +32,6 @@ int main(int argc, char* argv[]) {
     PILO::Time mttr;
     PILO::Time gossip;
     PILO::Time window = 0.0;
-    std::unordered_map<PILO::Time, double> converged;
     std::unordered_map<PILO::Time, uint32_t> max_load;
     bool one_link = false;
     bool crit_link = false;
@@ -43,6 +43,7 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<PILO::Distribution<bool>> link_drop_distribution;
     std::unique_ptr<PILO::Distribution<bool>> ctrl_drop_distribution;
     bool versioned;
+    uint32_t converge;
     //
     // Argument parsing
     po::options_description args("PILO simulation");
@@ -67,7 +68,8 @@ int main(int argc, char* argv[]) {
         "fastforward", "Fast-forward to when failures happen")("te", "Measure link utilization for TE")
         ("ctfail", po::value<int>(&interctrl_link)->default_value(0), "Links to fail between control link failures")
         ("versioned,v", "Use version information to reduce the number of flow table messages")
-        ("window",  po::value<PILO::Time>(&window)->default_value(0.0), "Window in which to measure bandwidth");
+        ("window",  po::value<PILO::Time>(&window)->default_value(0.0), "Window in which to measure bandwidth")
+        ("converge", po::value<uint32_t>(&converge), "Compute convergence time");
     po::variables_map vmap;
     po::store(po::command_line_parser(argc, argv).options(args).run(), vmap);
     po::notify(vmap);
@@ -118,7 +120,9 @@ int main(int argc, char* argv[]) {
                                 std::move(link_drop_distribution), std::move(ctrl_drop_distribution));
     simulation.set_all_links_up_silent();
     simulation.install_all_routes();
-    std::cout << "Pre run check = " << simulation.check_routes() << std::endl;
+    double r, g, n, d;
+    r = simulation.check_routes(g, n, d);
+    std::cout << "Pre run check = " <<  r << " " << g << " " << n << " " << d << std::endl;
 
     std::cout << "Setting up trace" << std::endl;
 
@@ -137,84 +141,23 @@ int main(int argc, char* argv[]) {
             std::cout << simulation._context.now() << "  Setting down " << link->name() << std::endl;
             simulation.set_link_down(link);
         });
-    } else if (interctrl_link > 0) {
-    	std::cout << "Controller failure simulation" << std::endl;
-    	auto clink1 = simulation.random_controller_link();
-        auto clink2 = simulation.random_controller_link();
-        while (clink1 == clink2) {
-            clink2 = simulation.random_controller_link();
+    } else if (vmap.count("converge")) {
+        for (uint32_t reps = 0; reps < converge; reps++) {
+            simulation._context.reset();
+            simulation.reset_links();
+            simulation.set_all_links_up_silent();
+            simulation.install_all_routes();
+
+            double r, g, n, d;
+            r = simulation.check_routes(g, n, d);
+            std::cout << "PreRun " <<  r << " " << g << " " << n << " " << d << std::endl;
+
+            auto link = simulation.random_link();
+            simulation.set_link_down(link);
+            simulation.run();
+            std::cout << "CONVERGE " << link->name() << " " << simulation._context.now() << std::endl;
         }
-        first_fail = 1;
-        std::cout << first_fail << " setting down all clinks except " << clink1->name() << std::endl;
-        simulation._context.scheduleAbsolute(first_fail, [&simulation, clink1](PILO::Time t) {
-                std::cout << simulation._context.now() << "  Setting down all controllers except " << clink1->name() << std::endl;
-                simulation.set_all_controller_links_down(clink1);
-        });
-
-        // Fail and recover some set of links
-        for (int i = 0; i < interctrl_link; i++) {
-                std::shared_ptr<PILO::Link> link;
-                if (crit_link) {
-                    link = simulation.random_switch_ctrl_link();
-                } else {
-                    link = simulation.random_link();
-                }
-                last_fail += mttf_distro.next();
-                if (first_fail == 0) {
-                    first_fail = last_fail;
-                }
-                PILO::Time recovery = last_fail + mttr_distro.next();
-                std::cout << last_fail << "  " << link->name() << "  down" << std::endl;
-                std::cout << recovery << "  " << link->name() << "  up" << std::endl;
-                simulation._context.scheduleAbsolute(last_fail, [&simulation, link](PILO::Time t) {
-                    std::cout << simulation._context.now() << "  Setting down " << link->name() << std::endl;
-                    simulation.set_link_down(link);
-                });
-                simulation._context.scheduleAbsolute(recovery, [&simulation, link](PILO::Time t) {
-                    std::cout << simulation._context.now() << "  Setting up " << link->name() << std::endl;
-                    simulation.set_link_up(link);
-                });
-                tsize++;
-        }
-        last_fail += mttf_distro.next();
-        std::cout << last_fail << " setting down all clinks except " << clink2->name() << std::endl;
-        simulation._context.scheduleAbsolute(last_fail, [&simulation, clink1](PILO::Time t) {
-                std::cout << simulation._context.now() << "  Setting down " << clink1->name() << std::endl;
-                simulation.set_link_down(clink1);
-        });
-        simulation._context.scheduleAbsolute(last_fail, [&simulation, clink2](PILO::Time t) {
-                std::cout << simulation._context.now() << "  Setting up " << clink2->name() << std::endl;
-                simulation.set_link_up(clink2);
-        });
-        do {
-            std::shared_ptr<PILO::Link> link;
-            if (crit_link) {
-                link = simulation.random_switch_link();
-            } else {
-                link = simulation.random_link();
-            }
-            last_fail += mttf_distro.next();
-            if (first_fail == 0) {
-                first_fail = last_fail;
-            }
-            PILO::Time recovery = last_fail + mttr_distro.next();
-            std::cout << last_fail << "  " << link->name() << "  down" << std::endl;
-            std::cout << recovery << "  " << link->name() << "  up" << std::endl;
-            simulation._context.scheduleAbsolute(last_fail, [&simulation, link](PILO::Time t) {
-                std::cout << simulation._context.now() << "  Setting down " << link->name() << std::endl;
-                simulation.set_link_down(link);
-            });
-            if (!one_link) {
-                simulation._context.scheduleAbsolute(recovery, [&simulation, link](PILO::Time t) {
-                    std::cout << simulation._context.now() << "  Setting up " << link->name() << std::endl;
-                    simulation.set_link_up(link);
-                });
-            }
-            tsize++;
-
-        } while (last_fail < end_time && !one_link);
-        std::cout << "Done setting up trace " << tsize << std::endl;
-
+        return 1;
     } else {
         do {
             std::shared_ptr<PILO::Link> link;
@@ -246,9 +189,16 @@ int main(int argc, char* argv[]) {
         std::cout << "Done setting up trace " << tsize << std::endl;
     }
     std::list<PILO::Time> samples;
+    std::unordered_map<PILO::Time, double> converged;
+    std::unordered_map<PILO::Time, double> differences;
     for (PILO::Time time = (fastforward ? first_fail : measure); time <= end_time; time += measure) {
         simulation._context.schedule(time, [&](PILO::Time t) {
-            converged[t] = simulation.check_routes();
+            t = simulation._context.now();
+            double global_distance = 0.,  net_distance = 0., difference = 0.;
+            converged[t] = simulation.check_routes(global_distance, net_distance, difference);
+            differences[t] = difference;
+            std::cout << std::setprecision(3) << (double)t << " distances " << global_distance << " " << net_distance 
+                << " " << difference << std::endl;
             samples.push_back(t);
         });
         if (te) {
@@ -274,7 +224,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Fin." << std::endl;
     std::cout << "Convergence " << std::endl;
     for (auto time : samples) {
-        std::cout << " !  " << std::setprecision(5) << time << " " << std::setprecision(5) << converged.at(time);
+        std::cout << " !  " << std::setprecision(5) << time << " " << std::setprecision(5) << converged.at(time)
+                  << " " << differences.at(time);
         if (te) {
             std::cout << " " << max_load.at(time);
         }
