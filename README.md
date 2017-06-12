@@ -1,7 +1,7 @@
 Yet Another PILO Simulator
 =========================
 
-Needs gcc-4.9 or later. To run on c32.
+Needs gcc-5 or later. To run on c32.
 
 ```
 mkdir bin
